@@ -15,6 +15,9 @@ import (
 type ReportData struct {
 	SystemInfo  *systeminfo.SystemDetails
 	ScanResults scanner.ScanResult
+	TargetCidr  string
+	PortStart   int
+	PortEnd     int
 }
 
 // GenerateReport takes the collected data and writes it to a Markdown file.
@@ -25,14 +28,14 @@ func GenerateReport(data ReportData, filename string) error {
 	sb.WriteString("# 💻 Network Intelligence Scan Report\n\n")
 	sb.WriteString(fmt.Sprintf("## 🗓️ Scan Details\n"))
 	sb.WriteString(fmt.Sprintf("* **Scan Time:** %s*\n", time.Now().Format(time.RFC1123)))
-	sb.WriteString(fmt.Sprintf("* **Target Scope:** Scanned internal nodes\n"))
-	sb.WriteString(fmt.Sprintf("* **Port Range:** 1 - 1024\n\n"))
+	sb.WriteString(fmt.Sprintf("* **Target Scope:** %s\n", data.TargetCidr))
+	sb.WriteString(fmt.Sprintf("* **Port Range:** %d - %d\n\n", data.PortStart, data.PortEnd))
 
 	// --- System Information Section ---
 	sb.WriteString("## 🌐 System Overview\n")
 	sb.WriteString("This section reports static and dynamically gathered information about the host machine.\n\n")
 
-	sb.WriteString("### 🖥️ Host Identification\n")
+	sb.WriteString("## 🖥️ Host Identification\n")
 	sb.WriteString(fmt.Sprintf("* **Hostname:** %s\n", data.SystemInfo.Hostname))
 	sb.WriteString(fmt.Sprintf("* **Operating System:** %s\n", data.SystemInfo.OSPlatform))
 	if len(data.SystemInfo.LocalIPs) > 0 {
@@ -40,7 +43,7 @@ func GenerateReport(data ReportData, filename string) error {
 	}
 
 	if len(data.SystemInfo.MACAddresses) > 0 {
-		sb.WriteString("### 📡 MAC Addresses\n")
+		sb.WriteString("## 📡 MAC Addresses\n")
 		sb.WriteString("The following MAC addresses were detected on the local interfaces:\n")
 		for _, mac := range data.SystemInfo.MACAddresses {
 			sb.WriteString(fmt.Sprintf("- `%s`\n", mac))
@@ -69,7 +72,7 @@ func GenerateReport(data ReportData, filename string) error {
 		sb.WriteString("❌ **No Open Ports Found:** The scan did not detect any open ports in the specified range on monitored hosts.\n")
 	} else {
 		for ip, ports := range data.ScanResults {
-			sb.WriteString(fmt.Sprintf("### 🟢 Host: `%s`\n", ip))
+			sb.WriteString(fmt.Sprintf("## 🟢 Host: `%s`\n", ip))
 			sb.WriteString("| Port | Status | Discovered Service |\n")
 			sb.WriteString("| :--- | :---: | :--- |\n")
 

@@ -81,6 +81,9 @@ func runTUI() {
 	reportData := report.ReportData{
 		SystemInfo:  sysInfo,
 		ScanResults: scanResults,
+		TargetCidr:  cidr,
+		PortStart:   portStart,
+		PortEnd:     portEnd,
 	}
 
 	reportFileName := fmt.Sprintf("network_scan_report_%s.md", sysInfo.Hostname)
@@ -111,7 +114,7 @@ func generateConsoleReport(data report.ReportData, cidr string) (string, error) 
 	sb.WriteString("================================================================\n")
 	sb.WriteString(fmt.Sprintf("🗓️ Scan Time: %s\n", time.Now().Format(time.RFC1123)))
 	sb.WriteString(fmt.Sprintf("🎯 Target Scope: %s\n", cidr))
-	sb.WriteString(fmt.Sprintf("🔢 Port Range: 1 - 1024\n\n"))
+	sb.WriteString(fmt.Sprintf("🔢 Port Range: %d - %d\n\n", data.PortStart, data.PortEnd))
 
 	sb.WriteString("🌐 SYSTEM OVERVIEW:\n")
 	sb.WriteString("-----------------\n")

@@ -106,7 +106,7 @@ func fingerprintPort(port int) string {
 	switch port {
 	case 21:
 		return "FTP"
-	case 2:
+	case 22:
 		return "SSH"
 	case 80:
 		return "HTTP/Web Server"
