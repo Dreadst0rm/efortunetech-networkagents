@@ -1,162 +1,169 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"log"
-	"os"
-	"strings"
 	"time"
 
-	"networkscanner/report"
-	"networkscanner/scanner"
-	"networkscanner/systeminfo"
+	"networksentinel/report"
+	"networksentinel/scanner"
+	"networksentinel/systeminfo"
 )
 
-// runTUI is the main interactive function simulating the TUI experience.
-func runTUI() {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("============================================================")
-	fmt.Println("         🚀 Advanced Network Intelligence Scanner")
-	fmt.Println("============================================================")
+func main() {
+	fmt.Println("=======================================")
+	fmt.Println("  Process Network Analysis (Phase 1)")
+	fmt.Println("=======================================")
+	fmt.Println()
 
-	// --- 1. Get User Input ---
-	fmt.Print("Enter Target CIDR (e.g., 192.168.1.0/24): ")
-	cidr, _ := reader.ReadString('\n')
-	cidr = strings.TrimSpace(cidr)
-	if cidr == "" {
-		cidr = "127.0.0.1/32" // Default
-	}
-
-	var portStart int
-	var portEnd int
-	fmt.Print("Enter Start Port (e.g., 1): ")
-	portStartStr, _ := reader.ReadString('\n')
-	fmt.Sscan(strings.TrimSpace(portStartStr), &portStart)
-	if portStart <= 0 {
-		portStart = 1
-	}
-
-	fmt.Print("Enter End Port (e.g., 1024): ")
-	portEndStr, _ := reader.ReadString('\n')
-	fmt.Sscan(strings.TrimSpace(portEndStr), &portEnd)
-	if portEnd <= 0 {
-		portEnd = 10
-	}
-
-	var maxHosts int
-	fmt.Print("Enter Max Hosts to scan (e.g., 256): ")
-	maxHostsStr, _ := reader.ReadString('\n')
-	fmt.Sscan(strings.TrimSpace(maxHostsStr), &maxHosts)
-	if maxHosts <= 0 {
-		maxHosts = 256
-	}
-
-	if cidr == "" || portStart == 0 || portEnd < portStart {
-		fmt.Println("\n❌ Error: Invalid parameters. Exiting.")
-		return
-	}
-
-	// --- 2. Gather System Information ---
-	fmt.Println("\n[INFO] Gathering System Network Intelligence. This may take a moment...")
-	sysInfo, err := systeminfo.GatherSystemInfo()
+	// Gather system info
+	fmt.Println("[1/4] Gathering system information...")
+	sysInfo, err := systeminfo.Gather()
 	if err != nil {
-		log.Printf("⚠️ Warning: Failed to gather system info: %v. Proceeding with partial report.", err)
-	} else {
-		fmt.Println("✅ System info gathered successfully.")
+		log.Fatalf("Failed to gather system info: %v", err)
 	}
+	fmt.Printf("  Hostname: %s\n", sysInfo.Hostname)
+	fmt.Printf("  OS: %s\n", sysInfo.OSPlatform)
+	fmt.Printf("  Local IPs: %s\n", fmt.Sprintf("%v", sysInfo.LocalIPs))
+	fmt.Println()
 
-	// --- 3. Run Scan ---
-	fmt.Printf("\n[INFO] Starting deep network scan on %s (Max: %d hosts) for ports %d-%d. This will take time...\n", cidr, maxHosts, portStart, portEnd)
-
-	scanResults, err := scanner.RunScan(cidr, portStart, portEnd, maxHosts)
-
+	// Scan connections and processes
+	fmt.Println("[2/3] Scanning network connections and processes...")
+	conns, procs, err := scanner.ScanAll()
 	if err != nil {
-		fmt.Printf("\n⚠️ Warning: Scanning finished with error: %v\n", err)
-	} else {
-		fmt.Println("\n✅ Scanning complete. Analyzing results...")
+		log.Fatalf("Failed to scan connections: %v", err)
 	}
+	fmt.Printf("  Found %d processes\n", len(procs))
+	fmt.Printf("  Found %d network connections\n", len(conns))
+	fmt.Println()
 
-	// --- 4. Generate and Display Report ---
-	reportData := report.ReportData{
-		SystemInfo:  sysInfo,
-		ScanResults: scanResults,
-		TargetCidr:  cidr,
-		PortStart:   portStart,
-		PortEnd:     portEnd,
-	}
-
-	reportFileName := fmt.Sprintf("network_scan_report_%s.md", sysInfo.Hostname)
-
-	fmt.Println("\n====================================================")
-	fmt.Println("                ✨ SCAN REPORT ✨")
-	fmt.Println("====================================================")
-
-	consoleReport, readError := generateConsoleReport(reportData, cidr)
-	if readError != nil {
-		fmt.Printf("\n❌ Error generating console report: %v\n", readError)
-		return
-	}
-	fmt.Println(consoleReport)
-
-	if err := report.GenerateReport(reportData, reportFileName); err != nil {
-		fmt.Printf("\n⚠️ Warning: Could not save full Markdown documentation to file: %v\n", err)
-	} else {
-		fmt.Printf("\n⭐ Intelligence Report also saved as: %s\n", reportFileName)
-	}
-}
-
-func generateConsoleReport(data report.ReportData, cidr string) (string, error) {
-	var sb strings.Builder
-
-	sb.WriteString("================================================================\n")
-	sb.WriteString("          🚀 ADVANCED NETWORK INTELLIGENCE SCAN REPORT         \n")
-	sb.WriteString("================================================================\n")
-	sb.WriteString(fmt.Sprintf("🗓️ Scan Time: %s\n", time.Now().Format(time.RFC1123)))
-	sb.WriteString(fmt.Sprintf("🎯 Target Scope: %s\n", cidr))
-	sb.WriteString(fmt.Sprintf("🔢 Port Range: %d - %d\n\n", data.PortStart, data.PortEnd))
-
-	sb.WriteString("🌐 SYSTEM OVERVIEW:\n")
-	sb.WriteString("-----------------\n")
-	if data.SystemInfo != nil {
-		sb.WriteString(fmt.Sprintf("   👤 Hostname: %s\n", data.SystemInfo.Hostname))
-		sb.WriteString(fmt.Sprintf("   ⚙️ OS: %s\n", data.SystemInfo.OSPlatform))
-		if len(data.SystemInfo.LocalIPs) > 0 {
-			sb.WriteString(fmt.Sprintf("   💻 Local IPs: %s\n", strings.Join(data.SystemInfo.LocalIPs, ", ")))
+	// Summarize findings
+	outboundCount := 0
+	internalCount := 0
+	suspiciousCount := 0
+	for _, c := range conns {
+		if c.Direction == "outbound" {
+			outboundCount++
+		} else {
+			internalCount++
 		}
-		if len(data.SystemInfo.MACAddresses) > 0 {
-			sb.WriteString("   🔗 MAC Addresses: ")
-			sb.WriteString(strings.Join(data.SystemInfo.MACAddresses, ", "))
-			sb.WriteString("\n")
+		if report.IsSuspicious(c) {
+			suspiciousCount++
 		}
 	}
+	fmt.Printf("  Outbound connections: %d\n", outboundCount)
+	fmt.Printf("  Internal connections: %d\n", internalCount)
+	fmt.Printf("  Suspicious connections: %d\n", suspiciousCount)
+	fmt.Println()
 
-	sb.WriteString("\n🛡️ NETWORK INTELLIGENCE & ANOMALIES:\n")
-	sb.WriteString("---------------------------\n")
-	if data.SystemInfo != nil && len(data.SystemInfo.PotentialSpoof) > 0 {
-		sb.WriteString("🚨 WARNING: POTENTIAL SPOOFING/VIRTUAL IPs DETECTED!\n")
-		for _, ip := range data.SystemInfo.PotentialSpoof {
-			sb.WriteString(fmt.Sprintf("  -> %s\n", ip))
+	// Risk analysis
+	fmt.Println("====================================")
+	fmt.Println("  Risk Analysis")
+	fmt.Println("====================================")
+	risks := scanner.AssessConnectionRisk(conns)
+	critical, high, medium, low := 0, 0, 0, 0
+	for _, r := range risks {
+		switch r.RiskLevel {
+		case scanner.RiskCritical:
+			critical++
+		case scanner.RiskHigh:
+			high++
+		case scanner.RiskMedium:
+			medium++
+		default:
+			low++
 		}
-	} else {
-		sb.WriteString("✅ No obvious spoofing/virtual IPs detected.\n")
+	}
+	fmt.Printf("  Critical risk: %d | High risk: %d | Medium risk: %d | Low risk: %d\n", critical, high, medium, low)
+	if len(risks) > 0 {
+		fmt.Println()
+		fmt.Println("  Top Risky Connections:")
+		for i, r := range risks {
+			if i >= 10 {
+				break
+			}
+			fmt.Printf("    [%s] %s (PID: %d) -> %s:%d (%s)\n",
+				r.RiskLevel, r.Process, r.ProcessID, r.RemoteAddr, r.RemotePort, r.State)
+			for _, reason := range r.RiskReasons {
+				fmt.Printf("      -> %s\n", reason)
+			}
+		}
+		fmt.Println()
+	}
+	fmt.Println()
+
+	// Generate report
+	fmt.Println("[3/4] Generating report...")
+	reportData := report.Data{
+		System:      sysInfo,
+		Connections: conns,
+		Processes:   procs,
+		Risks:       risks,
+	}
+	filename := fmt.Sprintf("network_sentinel_%s_%s.md", sysInfo.Hostname, time.Now().Format("20060102_150405"))
+	if err := report.GenerateMarkdown(reportData, filename); err != nil {
+		log.Fatalf("Failed to generate report: %v", err)
+	}
+	fmt.Printf("  Report saved to: %s\n\n", filename)
+
+	// Print suspicious connections
+	if suspiciousCount > 0 {
+		fmt.Println("=======================================")
+		fmt.Println("  Suspicious Connections")
+		fmt.Println("=======================================")
+		suspiciousConns := []scanner.Connection{}
+		for _, c := range conns {
+			if report.IsSuspicious(c) {
+				suspiciousConns = append(suspiciousConns, c)
+			}
+		}
+		for _, c := range suspiciousConns {
+			isSuspProc := report.IsSuspiciousProcess(c.Process)
+			flag := ""
+			if isSuspProc {
+				flag = " [SUSPICIOUS PROCESS]"
+			}
+			fmt.Printf("  PID: %d | Process: %s | %s:%d -> %s:%d (%s)%s\n",
+				c.ProcessID, c.Process, c.LocalAddr, c.LocalPort,
+				c.RemoteAddr, c.RemotePort, c.Protocol+":"+c.State, flag)
+		}
+		fmt.Println()
 	}
 
-	sb.WriteString("\n🚪 SERVICE AND PORT SCAN RESULTS:\n")
-	sb.WriteString("--------------------------------\n")
-	if len(data.ScanResults) == 0 {
-		sb.WriteString("No open ports found in the scanned range.\n")
-	} else {
-		for ip, ports := range data.ScanResults {
-			sb.WriteString(fmt.Sprintf("  Host: %s\n", ip))
-			for port, service := range ports {
-				sb.WriteString(fmt.Sprintf("    -> Port %d: OPEN (%s)\n", port, service))
+	// Print top 10 processes by connection count
+	fmt.Println("=======================================")
+	fmt.Println("  Top Processes by Network Activity")
+	fmt.Println("=======================================")
+	procCount := make(map[string]int)
+	procPID := make(map[string]int)
+	for _, c := range conns {
+		if c.Process != "" {
+			procCount[c.Process]++
+			procPID[c.Process] = c.ProcessID
+		}
+	}
+	type procEntry struct {
+		name  string
+		count int
+		pid   int
+	}
+	var sorted []procEntry
+	for name, count := range procCount {
+		sorted = append(sorted, procEntry{name, count, procPID[name]})
+	}
+	for i := 0; i < len(sorted); i++ {
+		for j := i + 1; j < len(sorted); j++ {
+			if sorted[j].count > sorted[i].count {
+				sorted[i], sorted[j] = sorted[j], sorted[i]
 			}
 		}
 	}
-	return sb.String(), nil
-}
-
-func main() {
-	runTUI()
+	for i, entry := range sorted {
+		if i >= 10 {
+			break
+		}
+		fmt.Printf("  %d. %s (PID: %d) - %d connections\n", i+1, entry.name, entry.pid, entry.count)
+	}
+	fmt.Println()
+	fmt.Println("Analysis complete.")
 }
