@@ -1,4 +1,11 @@
 *.exe
 go.sum
-go.workgo.work.sum
+go.work
+go.work.sum
 network_scan_report*.md
+network_sentinel_*.md
+network_sentinel_*.json
+network_sentinel_*.csv
+baseline.json
+networksentinel_linux
+networksentinel_darwin

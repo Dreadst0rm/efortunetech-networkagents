@@ -1,12 +1,16 @@
 package report
 
 import (
+	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
 	"time"
 
+	"networksentinel/baseline"
+	"networksentinel/processinfo"
 	"networksentinel/scanner"
 	"networksentinel/systeminfo"
 )
@@ -17,19 +21,22 @@ type Data struct {
 	Connections []scanner.Connection
 	Processes   []scanner.ProcessInfo
 	Risks       []scanner.ConnectionRisk
+	Security    map[int]processinfo.Info
+	Baseline    baseline.DiffResult
 }
 
 // Findings summarizes the risk analysis.
 type Findings struct {
-	TotalOutbound    int
-	ExternalEndpoints int
-	SuspiciousPorts   int
-	SuspiciousProcs   int
-	HighestRisk       scanner.RiskLevel
-	CriticalCount     int
-	HighCount         int
-	MediumCount       int
-	LowCount          int
+	TotalOutbound       int
+	ExternalEndpoints   int
+	SuspiciousPorts     int
+	SuspiciousProcs     int
+	HighestRisk         scanner.RiskLevel
+	CriticalCount       int
+	HighCount           int
+	MediumCount         int
+	LowCount            int
+	PrivEscalationCount int
 }
 
 // GenerateMarkdown writes a Markdown report to disk.
@@ -69,7 +76,7 @@ func GenerateMarkdown(data Data, filename string) error {
 			}
 		}
 		sb.WriteString("| Metric | Count |\n")
-		sb.WriteString("|--------|--+--|\n")
+		sb.WriteString("|--------|-------|\n")
 		sb.WriteString(fmt.Sprintf("| Total connections | %d |\n", len(data.Connections)))
 		sb.WriteString(fmt.Sprintf("| Outbound | %d |\n", outbound))
 		sb.WriteString(fmt.Sprintf("| Inbound | %d |\n", inbound))
@@ -192,8 +199,75 @@ func GenerateMarkdown(data Data, filename string) error {
 		}
 	}
 
+	// Privilege escalation findings
+	sb.WriteString("\n## Privilege Escalation Analysis\n\n")
+	escalationCount := 0
+	if len(data.Security) > 0 {
+		sb.WriteString("| PID | Process | Privilege | Signed | Exe Path |\n")
+		sb.WriteString("|---|---------|-----------|--------|----------|\n")
+		var pids []int
+		for pid := range data.Security {
+			pids = append(pids, pid)
+		}
+		sort.Ints(pids)
+		for _, pid := range pids {
+			info := data.Security[pid]
+			isElevated := info.PrivLevel == processinfo.Elevated || info.PrivLevel == processinfo.SYSTEM
+			isTempPath := strings.Contains(strings.ToLower(info.ExePath), "temp") ||
+				strings.Contains(strings.ToLower(info.ExePath), "tmp")
+			if isElevated && !info.IsSigned {
+				sb.WriteString(fmt.Sprintf("| %d | `%s` | `%s` | %v | `%s` |\n",
+					info.PID, info.Name, info.PrivLevel, info.IsSigned, info.ExePath))
+				if isTempPath {
+					escalationCount++
+				}
+			}
+		}
+	}
+	if escalationCount == 0 {
+		sb.WriteString("No privilege escalation risks detected.\n\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("\n**%d process(es) with privilege escalation risk (elevated + unsigned + temp path)**\n\n", escalationCount))
+	}
+
+	// Baseline comparison
+	sb.WriteString("\n## Baseline Comparison\n\n")
+	if data.Baseline.BaselineAge > 0 || len(data.Baseline.New) > 0 || len(data.Baseline.Gone) > 0 {
+		sb.WriteString(fmt.Sprintf("**Previous baseline age:** %s\n\n", data.Baseline.BaselineAge.Round(time.Second)))
+		sb.WriteString(fmt.Sprintf("| Category | Count |\n"))
+		sb.WriteString("|----------|-------|\n")
+		sb.WriteString(fmt.Sprintf("| **New connections** | %d |\n", len(data.Baseline.New)))
+		sb.WriteString(fmt.Sprintf("| **Disappeared** | %d |\n", len(data.Baseline.Gone)))
+		sb.WriteString(fmt.Sprintf("| **Unchanged** | %d |\n", len(data.Baseline.Unchanged)))
+		sb.WriteString("\n")
+
+		if len(data.Baseline.New) > 0 {
+			sb.WriteString("### New Connections\n\n")
+			sb.WriteString("| Process | PID | Remote Address | Port | State |\n")
+			sb.WriteString("|---------|---|------|-----|-------|\n")
+			for _, e := range data.Baseline.New {
+				sb.WriteString(fmt.Sprintf("| `%s` | %d | `%s` | %d | `%s` |\n",
+					e.Process, e.ProcessID, e.RemoteAddr, e.RemotePort, e.State))
+			}
+			sb.WriteString("\n")
+		}
+
+		if len(data.Baseline.Gone) > 0 {
+			sb.WriteString("### Disappeared Connections\n\n")
+			sb.WriteString("| Process | PID | Remote Address | Port | State |\n")
+			sb.WriteString("|---------|---|------|-----|-------|\n")
+			for _, e := range data.Baseline.Gone {
+				sb.WriteString(fmt.Sprintf("| `%s` | %d | `%s` | %d | `%s` |\n",
+					e.Process, e.ProcessID, e.RemoteAddr, e.RemotePort, e.State))
+			}
+			sb.WriteString("\n")
+		}
+	} else {
+		sb.WriteString("No previous baseline found. Run the scanner again to establish a comparison.\n\n")
+	}
+
 	// Findings summary
-	findings := countFindings(data.Connections, data.Risks)
+	findings := countFindings(data.Connections, data.Risks, escalationCount)
 	sb.WriteString("\n## Key Findings\n\n")
 	sb.WriteString("| Finding | Count |\n")
 	sb.WriteString("|---------|------|\n")
@@ -205,6 +279,7 @@ func GenerateMarkdown(data Data, filename string) error {
 	sb.WriteString(fmt.Sprintf("| High risk connections | %d |\n", findings.HighCount))
 	sb.WriteString(fmt.Sprintf("| Medium risk connections | %d |\n", findings.MediumCount))
 	sb.WriteString(fmt.Sprintf("| Low risk connections | %d |\n", findings.LowCount))
+	sb.WriteString(fmt.Sprintf("| Privilege escalation risks | %d |\n", findings.PrivEscalationCount))
 
 	return os.WriteFile(filename, []byte(sb.String()), 0644)
 }
@@ -261,6 +336,7 @@ func IsLocal(addr string) bool {
 }
 
 // SuspiciousProcessNames is the set of process names that warrant extra scrutiny.
+// Delegate to scanner.SuspiciousProcessNamesList for platform awareness.
 var SuspiciousProcessNames = map[string]struct{}{
 	"cmd.exe":      {},
 	"powershell.exe": {},
@@ -281,11 +357,27 @@ var SuspiciousProcessNames = map[string]struct{}{
 
 // IsSuspiciousProcess checks whether the process name is one that warrants scrutiny.
 func IsSuspiciousProcess(name string) bool {
-	_, ok := SuspiciousProcessNames[strings.ToLower(name)]
-	return ok
+	for n := range scanner.SuspiciousProcessNamesList() {
+		if strings.ToLower(n) == strings.ToLower(name) {
+			return true
+		}
+	}
+	return false
 }
 
-func countFindings(conns []scanner.Connection, risks []scanner.ConnectionRisk) Findings {
+func Summarize(data Data) Findings {
+	privEscCount := 0
+	for _, sec := range data.Security {
+		if sec.PrivLevel == processinfo.Elevated || sec.PrivLevel == processinfo.SYSTEM {
+			if !sec.IsSigned {
+				privEscCount++
+			}
+		}
+	}
+	return countFindings(data.Connections, data.Risks, privEscCount)
+}
+
+func countFindings(conns []scanner.Connection, risks []scanner.ConnectionRisk, privEscCount int) Findings {
 	f := Findings{}
 	seenEndpoints := make(map[string]bool)
 	seenSuspicious := make(map[int]bool)
@@ -308,6 +400,7 @@ func countFindings(conns []scanner.Connection, risks []scanner.ConnectionRisk) F
 		}
 	}
 	f.SuspiciousProcs = len(seenSuspicious)
+	f.PrivEscalationCount = privEscCount
 
 	for _, r := range risks {
 		switch r.RiskLevel {
@@ -337,4 +430,126 @@ func isSuspiciousPort(port int) bool {
 	}
 	_, ok := suspiciousPorts[port]
 	return ok
+}
+
+// GenerateJSON writes the full scan data as a JSON file.
+func GenerateJSON(data Data, filename string) error {
+	type jsonReport struct {
+		ScanTime    string                   `json:"scan_time"`
+		System      *systeminfo.SystemDetails `json:"system"`
+		Connections []scanner.Connection     `json:"connections"`
+		Processes   []scanner.ProcessInfo    `json:"processes"`
+		Risks       []scanner.ConnectionRisk `json:"risks"`
+		Security    map[int]processinfo.Info `json:"security"`
+		Baseline    baseline.DiffResult      `json:"baseline"`
+		Findings    Findings                 `json:"findings"`
+	}
+
+	out := jsonReport{
+		ScanTime:    time.Now().Format(time.RFC3339),
+		System:      data.System,
+		Connections: data.Connections,
+		Processes:   data.Processes,
+		Risks:       data.Risks,
+		Security:    data.Security,
+		Baseline:    data.Baseline,
+		Findings:    Summarize(data),
+	}
+
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("failed to create JSON file: %w", err)
+	}
+	defer f.Close()
+
+	enc2 := json.NewEncoder(f)
+	enc2.SetIndent("", "  ")
+	if err := enc2.Encode(out); err != nil {
+		return fmt.Errorf("failed to encode JSON: %w", err)
+	}
+
+	return nil
+}
+
+// GenerateCSV writes connections and risks as CSV files.
+func GenerateCSV(data Data, connectionsFile string, risksFile string) error {
+	if err := writeConnectionsCSV(data.Connections, connectionsFile); err != nil {
+		return err
+	}
+	if err := writeRisksCSV(data.Risks, risksFile); err != nil {
+		return err
+	}
+	return nil
+}
+
+func writeConnectionsCSV(conns []scanner.Connection, filename string) error {
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("failed to create CSV file: %w", err)
+	}
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+	defer w.Flush()
+
+	header := []string{"ProcessID", "Process", "Executable", "LocalAddr", "LocalPort", "RemoteAddr", "RemotePort", "Protocol", "State", "Direction"}
+	if err := w.Write(header); err != nil {
+		return fmt.Errorf("failed to write CSV header: %w", err)
+	}
+
+	for _, c := range conns {
+		record := []string{
+			fmt.Sprintf("%d", c.ProcessID),
+			c.Process,
+			c.Executable,
+			c.LocalAddr,
+			fmt.Sprintf("%d", c.LocalPort),
+			c.RemoteAddr,
+			fmt.Sprintf("%d", c.RemotePort),
+			c.Protocol,
+			c.State,
+			c.Direction,
+		}
+		if err := w.Write(record); err != nil {
+			return fmt.Errorf("failed to write CSV record: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func writeRisksCSV(risks []scanner.ConnectionRisk, filename string) error {
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("failed to create CSV file: %w", err)
+	}
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+	defer w.Flush()
+
+	header := []string{"RiskLevel", "ProcessID", "Process", "LocalAddr", "LocalPort", "RemoteAddr", "RemotePort", "State", "Direction", "Reasons"}
+	if err := w.Write(header); err != nil {
+		return fmt.Errorf("failed to write CSV header: %w", err)
+	}
+
+	for _, r := range risks {
+		record := []string{
+			string(r.RiskLevel),
+			fmt.Sprintf("%d", r.ProcessID),
+			r.Process,
+			r.LocalAddr,
+			fmt.Sprintf("%d", r.LocalPort),
+			r.RemoteAddr,
+			fmt.Sprintf("%d", r.RemotePort),
+			r.State,
+			r.Direction,
+			strings.Join(r.RiskReasons, "; "),
+		}
+		if err := w.Write(record); err != nil {
+			return fmt.Errorf("failed to write CSV record: %w", err)
+		}
+	}
+
+	return nil
 }

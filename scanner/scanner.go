@@ -2,19 +2,46 @@ package scanner
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
+
+	"networksentinel/config"
+	"networksentinel/processinfo"
+)
+
+// PrivilegeLevel represents the severity of a process privilege.
+type PrivilegeLevel string
+
+const (
+	PrivElevated PrivilegeLevel = "elevated"
+	PrivStandard PrivilegeLevel = "standard"
+	PrivSystem   PrivilegeLevel = "system"
+	PrivUnknown  PrivilegeLevel = "unknown"
 )
 
 // RiskLevel represents the severity of a suspicious connection.
 type RiskLevel string
 
 const (
-	RiskLow     RiskLevel = "low"
-	RiskMedium  RiskLevel = "medium"
-	RiskHigh    RiskLevel = "high"
+	RiskLow      RiskLevel = "low"
+	RiskMedium   RiskLevel = "medium"
+	RiskHigh     RiskLevel = "high"
 	RiskCritical RiskLevel = "critical"
 )
+
+// ProcessSecurityInfo carries per-PID security context for Phase 3.
+type ProcessSecurityInfo struct {
+	PID        int
+	Process    string
+	Username   string
+	PrivLevel  PrivilegeLevel
+	IsElevated bool
+	IsSigned   bool
+	Signer     string
+	ExePath    string
+	IsTempPath bool
+	IsSYSTEM   bool
+	IsAdmin    bool
+}
 
 // ConnectionRisk annotates a connection with risk analysis.
 type ConnectionRisk struct {
@@ -43,16 +70,16 @@ type ProcessInfo struct {
 	enabled bool
 }
 
-func ScanAll() ([]Connection, []ProcessInfo, error) {
-	procs, err := EnumerateProcesses()
+func ScanAll(cfg *config.Config) ([]Connection, []ProcessInfo, map[int]processinfo.Info, error) {
+	procs, err := enumerateProcesses()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to enumerate processes: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to enumerate processes: %w", err)
 	}
 
 	connSet := make(map[int]*Connection)
-	conns, err := GetNetConnections(connSet)
+	conns, err := getNetConnections(connSet)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get network connections: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to get network connections: %w", err)
 	}
 
 	// Correlate connections to processes via PID
@@ -66,131 +93,30 @@ func ScanAll() ([]Connection, []ProcessInfo, error) {
 		conns[i].Direction = determineDirection(&conns[i])
 	}
 
-	return conns, procs, nil
-}
-
-func EnumerateProcesses() ([]ProcessInfo, error) {
-	out, err := exec.Command("wmic", "process", "get", "Name,ProcessId", "/format:list").Output()
-	if err != nil {
-		return nil, fmt.Errorf("wmic process failed: %w", err)
-	}
-
-	// wmic /format:list format:
-	//   Name=xxx\n\nProcessId=1234\n\n\n\nName=yyy\n\nProcessId=5678
-	// Within an entry: Name and ProcessId separated by 1 blank line
-	// Between entries: multiple blank lines
-	// Strategy: emit as soon as both Name and ProcessId are present
-	lines := strings.Split(string(out), "\n")
-	var procs []ProcessInfo
-	current := ProcessInfo{enabled: false}
-	for _, line := range lines {
-		if strings.HasPrefix(line, "Name=") {
-			current.Name = strings.TrimSpace(strings.TrimPrefix(line, "Name="))
-			current.enabled = true
-		} else if strings.HasPrefix(line, "ProcessId=") {
-			var pid int
-			fmt.Sscanf(strings.TrimSpace(strings.TrimPrefix(line, "ProcessId=")), "%d", &pid)
-			current.PID = pid
-			if current.enabled && current.PID >= 0 {
-				procs = append(procs, current)
-				current = ProcessInfo{enabled: false}
-			}
-		}
-	}
-	return procs, nil
-}
-
-func GetNetConnections(connSet map[int]*Connection) ([]Connection, error) {
-	out, err := exec.Command("netstat", "-ano").Output()
-	if err != nil {
-		return nil, fmt.Errorf("netstat failed: %w", err)
-	}
-
-	var conns []Connection
-	lines := strings.Split(string(out), "\n")
-	inTable := false
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.Contains(line, "Active Connections") {
-			inTable = true
+	// Filter excluded PIDs and processes
+	var filtered []Connection
+	for _, c := range conns {
+		if cfg.IsExcludedPID(c.ProcessID) || cfg.IsExcludedProcess(c.Process) {
 			continue
 		}
-		if !inTable {
-			continue
-		}
+		filtered = append(filtered, c)
+	}
+	conns = filtered
 
-		// Skip header/separator lines
-		if strings.Contains(line, "-----") || line == "" || line == "Proto" {
-			continue
+	// Gather process security context for unique PIDs
+	pidSet := make(map[int]bool)
+	for _, c := range conns {
+		pidSet[c.ProcessID] = true
+	}
+	secInfo := make(map[int]processinfo.Info)
+	for pid := range pidSet {
+		info, err := processinfo.GetProcessInfo(pid)
+		if err == nil {
+			secInfo[pid] = info
 		}
-
-		parts := strings.Fields(line)
-		if len(parts) < 5 {
-			continue
-		}
-
-		proto := strings.ToUpper(parts[0])
-		if proto != "TCP" && proto != "TCPV6" && proto != "UDP" && proto != "UDPV6" {
-			continue
-		}
-
-		// Parse local address (might have multiple colons for IPv6)
-		localAddr := parseWindowsAddr(parts[1])
-		remoteAddr := parseWindowsAddr(parts[2])
-		state := parts[3]
-		pidStr := parts[4]
-
-		var pid int
-		fmt.Sscanf(pidStr, "%d", &pid)
-		if pid < 0 {
-			continue
-		}
-
-		c := Connection{
-			ProcessID: pid,
-			LocalAddr: localAddr.ip,
-			LocalPort: localAddr.port,
-			RemoteAddr: remoteAddr.ip,
-			RemotePort: remoteAddr.port,
-			Protocol:   proto,
-			State:      state,
-		}
-
-		if connSet != nil {
-			connSet[pid] = &c
-		}
-		conns = append(conns, c)
 	}
 
-	return conns, nil
-}
-
-type winAddr struct {
-	ip   string
-	port int
-}
-
-func parseWindowsAddr(s string) winAddr {
-	// Windows format: ip:port  (e.g., 0.0.0.0:135 or [::]:0)
-	if s == "*" {
-		return winAddr{ip: "*", port: 0}
-	}
-
-	// Remove brackets for IPv6
-	clean := s
-
-	// Find last colon for port (handles IPv6 bracket notation)
-	lastColon := strings.LastIndex(clean, ":")
-	if lastColon == -1 {
-		return winAddr{ip: clean, port: 0}
-	}
-
-	ipPart := clean[:lastColon]
-	var port int
-	fmt.Sscanf(clean[lastColon+1:], "%d", &port)
-
-	return winAddr{ip: ipPart, port: port}
+	return conns, procs, secInfo, nil
 }
 
 func determineDirection(c *Connection) string {
@@ -220,10 +146,10 @@ func determineDirection(c *Connection) string {
 
 func IsSuspiciousState(state string) bool {
 	suspicious := map[string]bool{
-		"SYN_SENT":    true,
+		"SYN_SENT":     true,
 		"SYN_RECEIVED": true,
-		"TIME_WAIT":   true,
-		"CLOSE_WAIT":  true,
+		"TIME_WAIT":    true,
+		"CLOSE_WAIT":   true,
 	}
 	return suspicious[strings.ToUpper(state)]
 }
@@ -236,34 +162,40 @@ func IsExternalIP(addr string) bool {
 	if strings.HasPrefix(addr, "[::") || strings.HasPrefix(addr, "[fe80::") ||
 		strings.HasPrefix(addr, "[fd") || strings.HasPrefix(addr, "[ff") ||
 		strings.HasPrefix(addr, "::1") || strings.HasPrefix(addr, "fe80::") ||
-		strings.HasPrefix(addr, "fd") || strings.HasPrefix(addr, "ff") {
+		isPrivatePrefix(addr, "fd") || strings.HasPrefix(addr, "ff") {
 		return false
 	}
 	// IPv4: reject private ranges
 	if strings.HasPrefix(addr, "127.") ||
 		strings.HasPrefix(addr, "192.168.") ||
 		strings.HasPrefix(addr, "10.") ||
-		strings.HasPrefix(addr, "172.") {
+		isPrivatePrefix(addr, "172") && len(addr) > 5 && addr[4] >= '1' && addr[4] <= '3' {
 		return false
 	}
 	return true
 }
 
-// SuspiciousProcessNames lists executable names that warrant extra scrutiny when
-// they make external network connections.
-var SuspiciousProcessNames = map[string]struct{}{
-	"cmd.exe": {}, "powershell.exe": {}, "wscript.exe": {}, "cscript.exe": {},
-	"wmic.exe": {}, "certutil.exe": {}, "bitsadmin.exe": {}, "dns.exe": {},
-	"net.exe": {}, "ssh.exe": {}, "curl.exe": {}, "netsh.exe": {},
-	"sc.exe": {}, "whoami.exe": {}, "mshta.exe": {}, "regsvr32.exe": {},
-	"msbuild.exe": {}, "tasklist.exe": {}, "ipconfig.exe": {},
+func isPrivatePrefix(s, prefix string) bool {
+	if !strings.HasPrefix(s, prefix) {
+		return false
+	}
+	rest := strings.TrimPrefix(s, prefix)
+	return len(rest) > 0 && rest[0] == '.'
 }
 
-// IsSuspiciousProcess reports whether the given process name is in the
-// SuspiciousProcessNames set.
+// SuspiciousProcessNames lists executable names that warrant extra scrutiny when
+// they make external network connections. Platform-aware — each OS builds its own set.
+func SuspiciousProcessNamesList() map[string]struct{} {
+	return suspiciousProcsForOS()
+}
+
 func IsSuspiciousProcess(name string) bool {
-	_, ok := SuspiciousProcessNames[strings.ToLower(name)]
-	return ok
+	for n := range SuspiciousProcessNamesList() {
+		if strings.ToLower(n) == strings.ToLower(name) {
+			return true
+		}
+	}
+	return false
 }
 
 // CommonReverseProxyPorts are ports commonly used by C2, proxies, or malware.
@@ -294,7 +226,7 @@ func IsTransitionState(state string) bool {
 
 // AssessConnectionRisk evaluates a connection and returns a ConnectionRisk
 // struct that combines all heuristic checks.
-func AssessConnectionRisk(conns []Connection) []ConnectionRisk {
+func AssessConnectionRisk(conns []Connection, secInfo map[int]processinfo.Info, cfg *config.Config) []ConnectionRisk {
 	// Count connections per process and per remote IP for heuristics.
 	procCount := make(map[string]int)
 	ipCount := make(map[string]int)
@@ -312,7 +244,7 @@ func AssessConnectionRisk(conns []Connection) []ConnectionRisk {
 			continue
 		}
 		var (
-			risk  RiskLevel
+			risk    RiskLevel
 			reasons []string
 		)
 
@@ -332,20 +264,35 @@ func AssessConnectionRisk(conns []Connection) []ConnectionRisk {
 		}
 
 		// --- 4. Per-IP connection count heuristic ---
-		if count := ipCount[c.RemoteAddr]; count >= 5 {
+		if count := ipCount[c.RemoteAddr]; count >= cfg.Thresholds.MinIPConnections {
 			reasons = append(reasons, fmt.Sprintf("high connection count to %s (%d)", c.RemoteAddr, count))
 		}
 
 		// --- 5. Per-process connection count heuristic ---
-		if count := procCount[c.Process]; count >= 5 {
+		if count := procCount[c.Process]; count >= cfg.Thresholds.MinProcessConnections {
 			reasons = append(reasons, fmt.Sprintf("high outbound connection count for %s (%d)", c.Process, count))
+		}
+
+		// --- 6. Privilege escalation chain detection ---
+		if info, ok := secInfo[c.ProcessID]; ok {
+			isElevated := info.PrivLevel == processinfo.Elevated || info.PrivLevel == processinfo.SYSTEM
+			isTempPath := strings.Contains(strings.ToLower(info.ExePath), "temp") ||
+				strings.Contains(strings.ToLower(info.ExePath), "tmp") ||
+				strings.Contains(strings.ToLower(info.ExePath), "appdata\\local\\temp")
+			if isElevated && !info.IsSigned && isTempPath {
+				reasons = append(reasons, "PRIVILEGE ESCALATION: elevated + unsigned + temp path")
+			} else if isElevated && !info.IsSigned {
+				reasons = append(reasons, fmt.Sprintf("elevated + unsigned binary: %s", info.ExePath))
+			} else if isElevated && isTempPath {
+				reasons = append(reasons, fmt.Sprintf("elevated process from temp path: %s", info.ExePath))
+			}
 		}
 
 		// --- Assign risk level ---
 		switch {
-		case len(reasons) >= 3:
+		case len(reasons) >= cfg.Thresholds.CriticalThreshold:
 			risk = RiskCritical
-		case len(reasons) >= 2:
+		case len(reasons) >= cfg.Thresholds.HighThreshold:
 			risk = RiskHigh
 		case len(reasons) == 1:
 			risk = RiskMedium
@@ -358,9 +305,9 @@ func AssessConnectionRisk(conns []Connection) []ConnectionRisk {
 		}
 
 		risks = append(risks, ConnectionRisk{
-			Connection:  c,
-			RiskLevel:   risk,
-			RiskReasons: reasons,
+			Connection:   c,
+			RiskLevel:    risk,
+			RiskReasons:  reasons,
 			IsSuspicious: isSuspicious,
 		})
 	}

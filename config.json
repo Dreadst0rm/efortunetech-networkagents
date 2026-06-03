@@ -1,0 +1,12 @@
+{
+  "thresholds": {
+    "min_ip_connections": 5,
+    "min_process_connections": 5,
+    "critical_threshold": 3,
+    "high_threshold": 2
+  },
+  "excluded": {
+    "pids": [],
+    "processes": []
+  }
+}

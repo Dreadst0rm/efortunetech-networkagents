@@ -5,10 +5,15 @@ import (
 	"log"
 	"time"
 
+	"networksentinel/baseline"
+	"networksentinel/config"
 	"networksentinel/report"
 	"networksentinel/scanner"
 	"networksentinel/systeminfo"
 )
+
+const baselineFile = "baseline.json"
+const configFile = "config.json"
 
 func main() {
 	fmt.Println("=======================================")
@@ -16,8 +21,21 @@ func main() {
 	fmt.Println("=======================================")
 	fmt.Println()
 
+	// Load configuration
+	cfg, err := config.Load(configFile)
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+	fmt.Printf("  IP conn threshold: %d | Process conn threshold: %d\n",
+		cfg.Thresholds.MinIPConnections, cfg.Thresholds.MinProcessConnections)
+	fmt.Printf("  Critical threshold: %d | High threshold: %d\n",
+		cfg.Thresholds.CriticalThreshold, cfg.Thresholds.HighThreshold)
+	fmt.Printf("  Excluded PIDs: %d | Excluded processes: %d\n",
+		len(cfg.Excluded.PIDs), len(cfg.Excluded.Processes))
+	fmt.Println()
+
 	// Gather system info
-	fmt.Println("[1/4] Gathering system information...")
+	fmt.Println("[1/5] Gathering system information...")
 	sysInfo, err := systeminfo.Gather()
 	if err != nil {
 		log.Fatalf("Failed to gather system info: %v", err)
@@ -28,11 +46,12 @@ func main() {
 	fmt.Println()
 
 	// Scan connections and processes
-	fmt.Println("[2/3] Scanning network connections and processes...")
-	conns, procs, err := scanner.ScanAll()
+	fmt.Println("[2/5] Scanning network connections and processes...")
+	conns, procs, secInfo, err := scanner.ScanAll(cfg)
 	if err != nil {
 		log.Fatalf("Failed to scan connections: %v", err)
 	}
+	fmt.Printf("  Security context gathered for %d processes\n", len(secInfo))
 	fmt.Printf("  Found %d processes\n", len(procs))
 	fmt.Printf("  Found %d network connections\n", len(conns))
 	fmt.Println()
@@ -57,10 +76,11 @@ func main() {
 	fmt.Println()
 
 	// Risk analysis
+	fmt.Println("[4/5] Analyzing connection risks...")
 	fmt.Println("====================================")
 	fmt.Println("  Risk Analysis")
 	fmt.Println("====================================")
-	risks := scanner.AssessConnectionRisk(conns)
+	risks := scanner.AssessConnectionRisk(conns, secInfo, cfg)
 	critical, high, medium, low := 0, 0, 0, 0
 	for _, r := range risks {
 		switch r.RiskLevel {
@@ -92,19 +112,80 @@ func main() {
 	}
 	fmt.Println()
 
+	// Baseline comparison
+	var diff baseline.DiffResult
+	prevSnap, err := baseline.Load(baselineFile)
+	if err == nil && prevSnap != nil {
+		fmt.Println("[3/5] Comparing against previous baseline...")
+		currentEntries := make([]baseline.Entry, 0, len(conns))
+		for _, c := range conns {
+			currentEntries = append(currentEntries, baseline.Entry{
+				ProcessID:  c.ProcessID,
+				Process:    c.Process,
+				LocalAddr:  c.LocalAddr,
+				LocalPort:  c.LocalPort,
+				RemoteAddr: c.RemoteAddr,
+				RemotePort: c.RemotePort,
+				State:      c.State,
+			})
+		}
+		diff = baseline.Diff(currentEntries, prevSnap)
+		fmt.Printf("  New connections: %d | Disappeared: %d | Unchanged: %d\n",
+			len(diff.New), len(diff.Gone), len(diff.Unchanged))
+		fmt.Printf("  Baseline age: %s\n", diff.BaselineAge.Round(time.Second))
+		fmt.Println()
+	} else {
+		fmt.Println("[3/4] No previous baseline found (will create one after scan)")
+		fmt.Println()
+	}
+
+	// Save current snapshot as new baseline
+	currentEntries := make([]baseline.Entry, 0, len(conns))
+	for _, c := range conns {
+		currentEntries = append(currentEntries, baseline.Entry{
+			ProcessID:  c.ProcessID,
+			Process:    c.Process,
+			LocalAddr:  c.LocalAddr,
+			LocalPort:  c.LocalPort,
+			RemoteAddr: c.RemoteAddr,
+			RemotePort: c.RemotePort,
+			State:      c.State,
+		})
+	}
+	if err := baseline.Save(baselineFile, sysInfo.Hostname, currentEntries); err != nil {
+		log.Printf("Warning: failed to save baseline: %v", err)
+	}
+
 	// Generate report
-	fmt.Println("[3/4] Generating report...")
+	fmt.Println("[5/5] Generating report...")
 	reportData := report.Data{
 		System:      sysInfo,
 		Connections: conns,
 		Processes:   procs,
 		Risks:       risks,
+		Security:    secInfo,
+		Baseline:    diff,
 	}
-	filename := fmt.Sprintf("network_sentinel_%s_%s.md", sysInfo.Hostname, time.Now().Format("20060102_150405"))
-	if err := report.GenerateMarkdown(reportData, filename); err != nil {
+	timestamp := time.Now().Format("20060102_150405")
+	mdFile := fmt.Sprintf("network_sentinel_%s_%s.md", sysInfo.Hostname, timestamp)
+	if err := report.GenerateMarkdown(reportData, mdFile); err != nil {
 		log.Fatalf("Failed to generate report: %v", err)
 	}
-	fmt.Printf("  Report saved to: %s\n\n", filename)
+	fmt.Printf("  Markdown: %s\n", mdFile)
+
+	jsonFile := fmt.Sprintf("network_sentinel_%s_%s.json", sysInfo.Hostname, timestamp)
+	if err := report.GenerateJSON(reportData, jsonFile); err != nil {
+		log.Fatalf("Failed to generate JSON: %v", err)
+	}
+	fmt.Printf("  JSON:     %s\n", jsonFile)
+
+	connCSV := fmt.Sprintf("network_sentinel_%s_%s_connections.csv", sysInfo.Hostname, timestamp)
+	riskCSV := fmt.Sprintf("network_sentinel_%s_%s_risks.csv", sysInfo.Hostname, timestamp)
+	if err := report.GenerateCSV(reportData, connCSV, riskCSV); err != nil {
+		log.Fatalf("Failed to generate CSV: %v", err)
+	}
+	fmt.Printf("  CSV conns: %s\n", connCSV)
+	fmt.Printf("  CSV risks: %s\n\n", riskCSV)
 
 	// Print suspicious connections
 	if suspiciousCount > 0 {
