@@ -1,28 +1,49 @@
 package main
 
 import (
+	"context"
+	"flag"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"sort"
+	"strings"
+	"syscall"
 	"time"
 
+	"networksentinel/alerting"
 	"networksentinel/baseline"
 	"networksentinel/config"
+	"networksentinel/dns"
 	"networksentinel/report"
 	"networksentinel/scanner"
 	"networksentinel/systeminfo"
+	"networksentinel/threatintel"
+	"networksentinel/version"
+)
+const baselineFile = "baseline.json"
+
+var (
+	configFile     = flag.String("config", "config.json", "Path to config file")
+	outputDir      = flag.String("output", ".", "Output directory for reports")
+	daemonInterval = flag.Int("daemon", 0, "Run in daemon mode with scan interval in seconds (0 = one-shot)")
+	help           = flag.Bool("h", false, "Show help")
 )
 
-const baselineFile = "baseline.json"
-const configFile = "config.json"
-
 func main() {
+	flag.Parse()
+	if *help {
+		flag.Usage()
+		return
+	}
+
 	fmt.Println("=======================================")
-	fmt.Println("  Process Network Analysis (Phase 1)")
+	fmt.Printf("  Process Network Analysis v%s\n", version.Version)
 	fmt.Println("=======================================")
 	fmt.Println()
 
-	// Load configuration
-	cfg, err := config.Load(configFile)
+	cfg, err := config.Load(*configFile)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
@@ -34,7 +55,15 @@ func main() {
 		len(cfg.Excluded.PIDs), len(cfg.Excluded.Processes))
 	fmt.Println()
 
-	// Gather system info
+	if *daemonInterval > 0 {
+		runDaemon(cfg, *daemonInterval, *outputDir)
+		return
+	}
+
+	runScan(cfg, *outputDir)
+}
+
+func runScan(cfg *config.Config, outputDir string) {
 	fmt.Println("[1/5] Gathering system information...")
 	sysInfo, err := systeminfo.Gather()
 	if err != nil {
@@ -42,10 +71,9 @@ func main() {
 	}
 	fmt.Printf("  Hostname: %s\n", sysInfo.Hostname)
 	fmt.Printf("  OS: %s\n", sysInfo.OSPlatform)
-	fmt.Printf("  Local IPs: %s\n", fmt.Sprintf("%v", sysInfo.LocalIPs))
+	fmt.Printf("  Local IPs: %v\n", sysInfo.LocalIPs)
 	fmt.Println()
 
-	// Scan connections and processes
 	fmt.Println("[2/5] Scanning network connections and processes...")
 	conns, procs, secInfo, err := scanner.ScanAll(cfg)
 	if err != nil {
@@ -56,7 +84,6 @@ func main() {
 	fmt.Printf("  Found %d network connections\n", len(conns))
 	fmt.Println()
 
-	// Summarize findings
 	outboundCount := 0
 	internalCount := 0
 	suspiciousCount := 0
@@ -75,12 +102,17 @@ func main() {
 	fmt.Printf("  Suspicious connections: %d\n", suspiciousCount)
 	fmt.Println()
 
-	// Risk analysis
 	fmt.Println("[4/5] Analyzing connection risks...")
 	fmt.Println("====================================")
 	fmt.Println("  Risk Analysis")
 	fmt.Println("====================================")
-	risks := scanner.AssessConnectionRisk(conns, secInfo, cfg)
+
+	// Load threat intelligence database
+	tiDB := threatintel.NewThreatIntelDB()
+	tiDB.AddIOCs(threatintel.KnownC2IPs)
+	fmt.Printf("  Threat intel loaded: %d indicators\n", tiDB.Count())
+
+	risks := scanner.AssessConnectionRiskWithThreatIntel(conns, secInfo, cfg, tiDB)
 	critical, high, medium, low := 0, 0, 0, 0
 	for _, r := range risks {
 		switch r.RiskLevel {
@@ -112,7 +144,46 @@ func main() {
 	}
 	fmt.Println()
 
-	// Baseline comparison
+	// DNS query analysis
+	if cfg.DNSLog {
+		fmt.Println("[DNS] Capturing DNS queries...")
+
+		// Capture DNS cache entries (platform-specific)
+		captureResult, err := dns.CaptureDNSQueries(cfg, sysInfo.Hostname)
+		if err != nil {
+			log.Printf("Warning: DNS capture failed: %v", err)
+		} else if captureResult != nil {
+			fmt.Printf("  DNS queries captured: %d (method: %s)\n", len(captureResult.Queries), captureResult.CaptureMethod)
+
+			// Also analyze connection remote addresses as potential DNS targets
+			for _, c := range conns {
+				if c.RemoteAddr != "" && c.RemoteAddr != "*" && c.RemoteAddr != "0.0.0.0" {
+					result := dns.CheckDomain(c.RemoteAddr)
+					if result.IsSuspicious {
+						fmt.Printf("  Connection target suspicious: %s (confidence: %.2f) — %s\n", result.Domain, result.Confidence, result.Reason)
+						captureResult.Queries = append(captureResult.Queries, dns.Query{
+							PID:       c.ProcessID,
+							Process:   c.Process,
+							QueryName: c.RemoteAddr,
+							Timestamp: time.Now(),
+						})
+					}
+				}
+			}
+
+			// Save DNS capture to file
+			dnsTimestamp := time.Now().Format("20060102_150405")
+			dnsFile := fmt.Sprintf("%s/captured_dns_queries_%s_%s.json", outputDir, sysInfo.Hostname, dnsTimestamp)
+			if err := dns.SaveCaptureResult(captureResult, dnsFile); err != nil {
+				log.Printf("Warning: failed to save DNS capture: %v", err)
+			} else {
+				fmt.Printf("  DNS capture saved: %s\n", dnsFile)
+			}
+		}
+
+		fmt.Println()
+	}
+
 	var diff baseline.DiffResult
 	prevSnap, err := baseline.Load(baselineFile)
 	if err == nil && prevSnap != nil {
@@ -139,7 +210,6 @@ func main() {
 		fmt.Println()
 	}
 
-	// Save current snapshot as new baseline
 	currentEntries := make([]baseline.Entry, 0, len(conns))
 	for _, c := range conns {
 		currentEntries = append(currentEntries, baseline.Entry{
@@ -156,7 +226,6 @@ func main() {
 		log.Printf("Warning: failed to save baseline: %v", err)
 	}
 
-	// Generate report
 	fmt.Println("[5/5] Generating report...")
 	reportData := report.Data{
 		System:      sysInfo,
@@ -167,27 +236,26 @@ func main() {
 		Baseline:    diff,
 	}
 	timestamp := time.Now().Format("20060102_150405")
-	mdFile := fmt.Sprintf("network_sentinel_%s_%s.md", sysInfo.Hostname, timestamp)
+	mdFile := fmt.Sprintf("%s/network_sentinel_%s_%s.md", outputDir, sysInfo.Hostname, timestamp)
 	if err := report.GenerateMarkdown(reportData, mdFile); err != nil {
 		log.Fatalf("Failed to generate report: %v", err)
 	}
 	fmt.Printf("  Markdown: %s\n", mdFile)
 
-	jsonFile := fmt.Sprintf("network_sentinel_%s_%s.json", sysInfo.Hostname, timestamp)
+	jsonFile := fmt.Sprintf("%s/network_sentinel_%s_%s.json", outputDir, sysInfo.Hostname, timestamp)
 	if err := report.GenerateJSON(reportData, jsonFile); err != nil {
 		log.Fatalf("Failed to generate JSON: %v", err)
 	}
 	fmt.Printf("  JSON:     %s\n", jsonFile)
 
-	connCSV := fmt.Sprintf("network_sentinel_%s_%s_connections.csv", sysInfo.Hostname, timestamp)
-	riskCSV := fmt.Sprintf("network_sentinel_%s_%s_risks.csv", sysInfo.Hostname, timestamp)
+	connCSV := fmt.Sprintf("%s/network_sentinel_%s_%s_connections.csv", outputDir, sysInfo.Hostname, timestamp)
+	riskCSV := fmt.Sprintf("%s/network_sentinel_%s_%s_risks.csv", outputDir, sysInfo.Hostname, timestamp)
 	if err := report.GenerateCSV(reportData, connCSV, riskCSV); err != nil {
 		log.Fatalf("Failed to generate CSV: %v", err)
 	}
 	fmt.Printf("  CSV conns: %s\n", connCSV)
 	fmt.Printf("  CSV risks: %s\n\n", riskCSV)
 
-	// Print suspicious connections
 	if suspiciousCount > 0 {
 		fmt.Println("=======================================")
 		fmt.Println("  Suspicious Connections")
@@ -211,7 +279,27 @@ func main() {
 		fmt.Println()
 	}
 
-	// Print top 10 processes by connection count
+	// Alerting
+	if cfg.Alerting.Enabled {
+		fmt.Println("[Alerting] Sending alerts...")
+		reg := alerting.NewRegistry()
+		if cfg.Alerting.WebhookURL != "" {
+			reg.AddNotifier(&alerting.WebhookNotifier{URL: cfg.Alerting.WebhookURL})
+		}
+		reg.AddNotifier(&alerting.SyslogNotifier{})
+		for _, r := range risks {
+			if r.RiskLevel == scanner.RiskCritical || r.RiskLevel == scanner.RiskHigh {
+				reg.Send(alerting.Alert{
+					Timestamp: time.Now(),
+					Level:     string(r.RiskLevel),
+					Message:   fmt.Sprintf("%s (PID: %d) -> %s:%d", r.Process, r.ProcessID, r.RemoteAddr, r.RemotePort),
+					Details:   strings.Join(r.RiskReasons, "; "),
+				})
+			}
+		}
+		fmt.Println()
+	}
+
 	fmt.Println("=======================================")
 	fmt.Println("  Top Processes by Network Activity")
 	fmt.Println("=======================================")
@@ -223,28 +311,46 @@ func main() {
 			procPID[c.Process] = c.ProcessID
 		}
 	}
-	type procEntry struct {
-		name  string
-		count int
-		pid   int
+	var sorted []string
+	for name := range procCount {
+		sorted = append(sorted, name)
 	}
-	var sorted []procEntry
-	for name, count := range procCount {
-		sorted = append(sorted, procEntry{name, count, procPID[name]})
-	}
-	for i := 0; i < len(sorted); i++ {
-		for j := i + 1; j < len(sorted); j++ {
-			if sorted[j].count > sorted[i].count {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
-			}
-		}
-	}
-	for i, entry := range sorted {
+	sort.Slice(sorted, func(i, j int) bool {
+		return procCount[sorted[i]] > procCount[sorted[j]]
+	})
+	for i, name := range sorted {
 		if i >= 10 {
 			break
 		}
-		fmt.Printf("  %d. %s (PID: %d) - %d connections\n", i+1, entry.name, entry.pid, entry.count)
+		fmt.Printf("  %d. %s (PID: %d) - %d connections\n", i+1, name, procPID[name], procCount[name])
 	}
 	fmt.Println()
 	fmt.Println("Analysis complete.")
+}
+
+func runDaemon(cfg *config.Config, interval int, outputDir string) {
+	fmt.Printf("Starting daemon mode (scan every %ds). Press Ctrl+C to stop.\n", interval)
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		ticker := time.NewTicker(time.Duration(interval) * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				fmt.Printf("\n[%s] Starting scheduled scan...\n", time.Now().Format("15:04:05"))
+				runScan(cfg, outputDir)
+			}
+		}
+	}()
+
+	<-sigCh
+	cancel()
+	fmt.Println("\nShutting down daemon...")
+	fmt.Println("Daemon stopped.")
 }

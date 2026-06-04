@@ -13,6 +13,7 @@ import (
 	"networksentinel/processinfo"
 	"networksentinel/scanner"
 	"networksentinel/systeminfo"
+	"networksentinel/version"
 )
 
 // Data bundles all data needed for a report.
@@ -44,9 +45,9 @@ func GenerateMarkdown(data Data, filename string) error {
 	var sb strings.Builder
 
 	sb.WriteString("# Process Network Analysis Report\n\n")
-	sb.WriteString(fmt.Sprintf("**Scan time:** %s\n\n", time.Now().Format(time.RFC1123)))
+	sb.WriteString(fmt.Sprintf("**Version:** %s | **Scan time:** %s\n\n", version.Version, time.Now().Format(time.RFC1123)))
 
-	// System overview
+// System overview
 	sb.WriteString("## System Information\n\n")
 	if data.System != nil {
 		sb.WriteString("| Field | Value |\n")
@@ -335,26 +336,6 @@ func IsLocal(addr string) bool {
 		strings.HasPrefix(addr, "172.")
 }
 
-// SuspiciousProcessNames is the set of process names that warrant extra scrutiny.
-// Delegate to scanner.SuspiciousProcessNamesList for platform awareness.
-var SuspiciousProcessNames = map[string]struct{}{
-	"cmd.exe":      {},
-	"powershell.exe": {},
-	"wscript.exe":  {},
-	"cscript.exe":  {},
-	"wmic.exe":     {},
-	"certutil.exe": {},
-	"bitsadmin.exe": {},
-	"dns.exe":      {},
-	"net.exe":      {},
-	"ssh.exe":      {},
-	"curl.exe":     {},
-	"netsh.exe":    {},
-	"sc.exe":       {},
-	"whoami.exe":   {},
-	"mshta.exe":    {},
-}
-
 // IsSuspiciousProcess checks whether the process name is one that warrants scrutiny.
 func IsSuspiciousProcess(name string) bool {
 	for n := range scanner.SuspiciousProcessNamesList() {
@@ -421,20 +402,13 @@ func countFindings(conns []scanner.Connection, risks []scanner.ConnectionRisk, p
 }
 
 func isSuspiciousPort(port int) bool {
-	suspiciousPorts := map[int]struct{}{
-		4444: {}, 5555: {}, 6666: {}, 6667: {}, 7777: {},
-		8888: {}, 9999: {}, 1080: {}, 1081: {}, 3128: {},
-		8080: {}, 8443: {}, 1337: {}, 9001: {}, 9050: {},
-		9051: {}, 6660: {}, 6661: {}, 6662: {}, 6663: {},
-		2525: {}, 4242: {}, 4243: {}, 4244: {}, 1234: {},
-	}
-	_, ok := suspiciousPorts[port]
-	return ok
+	return scanner.IsSuspiciousPort(port)
 }
 
 // GenerateJSON writes the full scan data as a JSON file.
 func GenerateJSON(data Data, filename string) error {
 	type jsonReport struct {
+		Version     string                   `json:"version"`
 		ScanTime    string                   `json:"scan_time"`
 		System      *systeminfo.SystemDetails `json:"system"`
 		Connections []scanner.Connection     `json:"connections"`
@@ -446,6 +420,7 @@ func GenerateJSON(data Data, filename string) error {
 	}
 
 	out := jsonReport{
+		Version:     version.Version,
 		ScanTime:    time.Now().Format(time.RFC3339),
 		System:      data.System,
 		Connections: data.Connections,

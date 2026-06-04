@@ -2,10 +2,27 @@
 go.sum
 go.work
 go.work.sum
-network_scan_report*.md
+
+# config files (contains API keys)
+config.yaml
+config.yml
+config.json
+
+# output files from application
 network_sentinel_*.md
 network_sentinel_*.json
 network_sentinel_*.csv
+network_sentinel_*.txt
+
+# DNS capture output
+captured_dns_queries_*.json
+
+# baseline snapshot
 baseline.json
+
+# cross-platform binaries
 networksentinel_linux
 networksentinel_darwin
+
+# env file
+.env

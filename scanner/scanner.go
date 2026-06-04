@@ -6,7 +6,36 @@ import (
 
 	"networksentinel/config"
 	"networksentinel/processinfo"
+	"networksentinel/threatintel"
 )
+
+// AssessConnectionRiskWithThreatIntel evaluates a connection with threat intelligence matching.
+func AssessConnectionRiskWithThreatIntel(conns []Connection, secInfo map[int]processinfo.Info, cfg *config.Config, tiDB *threatintel.ThreatIntelDB) []ConnectionRisk {
+	risks := AssessConnectionRisk(conns, secInfo, cfg)
+
+	if tiDB == nil {
+		return risks
+	}
+
+	for i, r := range risks {
+		match := tiDB.LookupConnection(r.RemoteAddr)
+		if match != nil {
+			for _, ioc := range match.IOCs {
+				r.RiskReasons = append(r.RiskReasons, fmt.Sprintf("THREAT_INTEL: %s (%s) confidence=%d country=%s tags=[%s]", ioc.MalwareFamily, ioc.Source, ioc.Confidence, ioc.Country, strings.Join(ioc.Tags, ", ")))
+				if ioc.Confidence >= 90 {
+					r.RiskLevel = RiskCritical
+				} else if ioc.Confidence >= 80 {
+					if r.RiskLevel == RiskLow || r.RiskLevel == RiskMedium {
+						r.RiskLevel = RiskHigh
+					}
+				}
+			}
+			risks[i] = r
+		}
+	}
+
+	return risks
+}
 
 // PrivilegeLevel represents the severity of a process privilege.
 type PrivilegeLevel string
@@ -158,18 +187,25 @@ func IsExternalIP(addr string) bool {
 	if addr == "" || addr == "0.0.0.0" || addr == "*" {
 		return false
 	}
-	// IPv6: reject all non-universal IPv6
-	if strings.HasPrefix(addr, "[::") || strings.HasPrefix(addr, "[fe80::") ||
-		strings.HasPrefix(addr, "[fd") || strings.HasPrefix(addr, "[ff") ||
-		strings.HasPrefix(addr, "::1") || strings.HasPrefix(addr, "fe80::") ||
-		isPrivatePrefix(addr, "fd") || strings.HasPrefix(addr, "ff") {
+
+	clean := addr
+	if strings.HasPrefix(clean, "[") {
+		idx := strings.Index(clean, "]")
+		if idx > 1 {
+			clean = clean[1 : idx]
+		}
+	}
+
+	if strings.HasPrefix(clean, "[::") || strings.HasPrefix(clean, "[fe80::") ||
+		strings.HasPrefix(clean, "[fd") || strings.HasPrefix(clean, "[ff") ||
+		strings.HasPrefix(clean, "::1") || strings.HasPrefix(clean, "fe80::") ||
+		isPrivatePrefix(clean, "fd") || strings.HasPrefix(clean, "ff") {
 		return false
 	}
-	// IPv4: reject private ranges
-	if strings.HasPrefix(addr, "127.") ||
-		strings.HasPrefix(addr, "192.168.") ||
-		strings.HasPrefix(addr, "10.") ||
-		isPrivatePrefix(addr, "172") && len(addr) > 5 && addr[4] >= '1' && addr[4] <= '3' {
+	if strings.HasPrefix(clean, "127.") ||
+		strings.HasPrefix(clean, "192.168.") ||
+		strings.HasPrefix(clean, "10.") ||
+		isPrivatePrefix(clean, "172") {
 		return false
 	}
 	return true
@@ -276,9 +312,7 @@ func AssessConnectionRisk(conns []Connection, secInfo map[int]processinfo.Info, 
 		// --- 6. Privilege escalation chain detection ---
 		if info, ok := secInfo[c.ProcessID]; ok {
 			isElevated := info.PrivLevel == processinfo.Elevated || info.PrivLevel == processinfo.SYSTEM
-			isTempPath := strings.Contains(strings.ToLower(info.ExePath), "temp") ||
-				strings.Contains(strings.ToLower(info.ExePath), "tmp") ||
-				strings.Contains(strings.ToLower(info.ExePath), "appdata\\local\\temp")
+			isTempPath := processinfo.IsSuspiciousPath(info.ExePath)
 			if isElevated && !info.IsSigned && isTempPath {
 				reasons = append(reasons, "PRIVILEGE ESCALATION: elevated + unsigned + temp path")
 			} else if isElevated && !info.IsSigned {
