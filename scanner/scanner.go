@@ -75,9 +75,10 @@ type ProcessSecurityInfo struct {
 // ConnectionRisk annotates a connection with risk analysis.
 type ConnectionRisk struct {
 	Connection
-	RiskLevel    RiskLevel
-	RiskReasons  []string
-	IsSuspicious bool
+	RiskLevel     RiskLevel
+	RiskReasons   []string
+	IsSuspicious  bool
+	IsWhitelisted bool
 }
 
 type Connection struct {
@@ -91,6 +92,7 @@ type Connection struct {
 	Protocol   string
 	State      string
 	Direction  string // "outbound", "inbound", "unknown"
+	DNSName    string // resolved domain name from reverse DNS lookup
 }
 
 type ProcessInfo struct {
@@ -199,19 +201,19 @@ func IsExternalIP(addr string) bool {
 	if strings.HasPrefix(clean, "[::") || strings.HasPrefix(clean, "[fe80::") ||
 		strings.HasPrefix(clean, "[fd") || strings.HasPrefix(clean, "[ff") ||
 		strings.HasPrefix(clean, "::1") || strings.HasPrefix(clean, "fe80::") ||
-		isPrivatePrefix(clean, "fd") || strings.HasPrefix(clean, "ff") {
+		IsPrivatePrefix(clean, "fd") || strings.HasPrefix(clean, "ff") {
 		return false
 	}
 	if strings.HasPrefix(clean, "127.") ||
 		strings.HasPrefix(clean, "192.168.") ||
 		strings.HasPrefix(clean, "10.") ||
-		isPrivatePrefix(clean, "172") {
+		IsPrivatePrefix(clean, "172") {
 		return false
 	}
 	return true
 }
 
-func isPrivatePrefix(s, prefix string) bool {
+func IsPrivatePrefix(s, prefix string) bool {
 	if !strings.HasPrefix(s, prefix) {
 		return false
 	}
@@ -284,13 +286,16 @@ func AssessConnectionRisk(conns []Connection, secInfo map[int]processinfo.Info, 
 			reasons []string
 		)
 
+		// Whitelisted IPs skip suspicious port and process heuristics
+		isWhitelisted := cfg.IsWhitelistedIP(c.RemoteAddr)
+
 		// --- 1. Suspicious port detection ---
-		if IsSuspiciousPort(c.RemotePort) {
+		if !isWhitelisted && IsSuspiciousPort(c.RemotePort) {
 			reasons = append(reasons, fmt.Sprintf("suspicious port %d", c.RemotePort))
 		}
 
 		// --- 2. Process name heuristic ---
-		if IsSuspiciousProcess(c.Process) {
+		if !isWhitelisted && IsSuspiciousProcess(c.Process) {
 			reasons = append(reasons, fmt.Sprintf("suspicious process: %s", c.Process))
 		}
 
@@ -339,10 +344,11 @@ func AssessConnectionRisk(conns []Connection, secInfo map[int]processinfo.Info, 
 		}
 
 		risks = append(risks, ConnectionRisk{
-			Connection:   c,
-			RiskLevel:    risk,
-			RiskReasons:  reasons,
-			IsSuspicious: isSuspicious,
+			Connection:    c,
+			RiskLevel:     risk,
+			RiskReasons:   reasons,
+			IsSuspicious:  isSuspicious,
+			IsWhitelisted: isWhitelisted,
 		})
 	}
 

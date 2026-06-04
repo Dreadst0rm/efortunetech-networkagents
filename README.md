@@ -129,13 +129,17 @@ main.go
 
 ## Threat Intelligence Feeds
 
-NetworkSentinel includes 33 built-in indicators covering 10 C2 frameworks, 9 malware families, and 11 phishing domains. To update:
+NetworkSentinel includes 33 built-in indicators covering 10 C2 frameworks, 9 malware families, and 11 phishing domains.
 
-1. Download a feed from [ThreatFox](https://threatfox.abuse.ch), [C2-Tracker](https://github.com/montysecurity/C2-Tracker), or [Spamhaus](https://www.spamhaus.org)
-2. Add new indicators to `threatintel/feeds.go` as `IOC` structs in the `KnownC2IPs` slice
-3. Rebuild: `go build -o networksentinel .`
+**Quick update (no rebuild):** Download a JSON feed and pass it at runtime:
+```bash
+curl -s https://threatfox.abuse.ch/api/v1/export/json/ | python3 -c "..." > threatintel_feed.json
+./networksentinel -feed threatintel_feed.json
+```
 
-See platform-specific guides for detailed update instructions.
+**Permanent update:** Edit `threatintel/feeds.go`, add `IOC` structs to `KnownC2IPs`, then rebuild.
+
+See platform-specific guides for detailed instructions.
 
 ## Testing
 

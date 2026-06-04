@@ -3,15 +3,24 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
+	"strings"
 )
+
+// WhitelistedIP represents an IP address trusted by the administrator.
+type WhitelistedIP struct {
+	IP      string `json:"ip"`
+	Comment string `json:"comment"`
+}
 
 // Config holds all configurable thresholds and settings.
 type Config struct {
-	Thresholds Thresholds `json:"thresholds"`
-	Excluded   Excluded   `json:"excluded"`
-	DNSLog     bool       `json:"dns_log"`
-	Alerting   Alerting   `json:"alerting"`
+	Thresholds Thresholds      `json:"thresholds"`
+	Excluded   Excluded        `json:"excluded"`
+	Whitelist  []WhitelistedIP `json:"whitelist"`
+	DNSLog     bool            `json:"dns_log"`
+	Alerting   Alerting        `json:"alerting"`
 }
 
 // Alerting holds alert delivery configuration.
@@ -47,7 +56,8 @@ func Defaults() Config {
 			PIDs:      []int{},
 			Processes: []string{},
 		},
-		DNSLog: false,
+		Whitelist: []WhitelistedIP{},
+		DNSLog:    false,
 		Alerting: Alerting{
 			WebhookURL: "",
 			Enabled:    false,
@@ -68,10 +78,11 @@ func Load(filename string) (*Config, error) {
 	}
 
 	var partial struct {
-		Thresholds *Thresholds `json:"thresholds"`
-		Excluded   *Excluded   `json:"excluded"`
-		DNSLog     *bool       `json:"dns_log"`
-		Alerting   *Alerting   `json:"alerting"`
+		Thresholds *Thresholds      `json:"thresholds"`
+		Excluded   *Excluded        `json:"excluded"`
+		Whitelist  *[]WhitelistedIP `json:"whitelist"`
+		DNSLog     *bool            `json:"dns_log"`
+		Alerting   *Alerting        `json:"alerting"`
 	}
 	if err := json.Unmarshal(data, &partial); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
@@ -91,6 +102,9 @@ func Load(filename string) (*Config, error) {
 		if cfg.Thresholds.HighThreshold < 1 {
 			cfg.Thresholds.HighThreshold = 1
 		}
+		if cfg.Thresholds.CriticalThreshold < cfg.Thresholds.HighThreshold {
+			cfg.Thresholds.CriticalThreshold = cfg.Thresholds.HighThreshold
+		}
 	}
 	if partial.Excluded != nil {
 		cfg.Excluded = *partial.Excluded
@@ -100,6 +114,14 @@ func Load(filename string) (*Config, error) {
 	}
 	if partial.Alerting != nil {
 		cfg.Alerting = *partial.Alerting
+	}
+	if partial.Whitelist != nil {
+		cfg.Whitelist = *partial.Whitelist
+		for i, w := range cfg.Whitelist {
+			if net.ParseIP(w.IP) == nil {
+				cfg.Whitelist[i].IP = ""
+			}
+		}
 	}
 
 	return &cfg, nil
@@ -113,6 +135,26 @@ func (c *Config) IsExcludedPID(pid int) bool {
 		}
 	}
 	return false
+}
+
+// IsWhitelistedIP returns true if the given IP is in the whitelist.
+func (c *Config) IsWhitelistedIP(ip string) bool {
+	for _, w := range c.Whitelist {
+		if strings.EqualFold(w.IP, ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// GetWhitelistComment returns the comment for a whitelisted IP, or empty string.
+func (c *Config) GetWhitelistComment(ip string) string {
+	for _, w := range c.Whitelist {
+		if strings.EqualFold(w.IP, ip) {
+			return w.Comment
+		}
+	}
+	return ""
 }
 
 // IsExcludedProcess returns true if the given process name is in the exclusion list.

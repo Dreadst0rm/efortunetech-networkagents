@@ -543,9 +543,9 @@ func TestIsPrivatePrefix(t *testing.T) {
 		{"fe80::1", "fd", false},
 	}
 	for _, tt := range tests {
-		result := isPrivatePrefix(tt.s, tt.prefix)
+		result := IsPrivatePrefix(tt.s, tt.prefix)
 		if result != tt.expected {
-			t.Errorf("isPrivatePrefix(%q, %q) = %v, want %v", tt.s, tt.prefix, result, tt.expected)
+			t.Errorf("IsPrivatePrefix(%q, %q) = %v, want %v", tt.s, tt.prefix, result, tt.expected)
 		}
 	}
 }

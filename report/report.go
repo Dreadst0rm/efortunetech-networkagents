@@ -16,6 +16,12 @@ import (
 	"networksentinel/version"
 )
 
+// WhitelistedIP represents a whitelisted IP with its comment.
+type WhitelistedIP struct {
+	IP      string
+	Comment string
+}
+
 // Data bundles all data needed for a report.
 type Data struct {
 	System      *systeminfo.SystemDetails
@@ -24,6 +30,7 @@ type Data struct {
 	Risks       []scanner.ConnectionRisk
 	Security    map[int]processinfo.Info
 	Baseline    baseline.DiffResult
+	Whitelist   []WhitelistedIP
 }
 
 // Findings summarizes the risk analysis.
@@ -38,6 +45,7 @@ type Findings struct {
 	MediumCount         int
 	LowCount            int
 	PrivEscalationCount int
+	WhitelistedCount    int
 }
 
 // GenerateMarkdown writes a Markdown report to disk.
@@ -117,15 +125,15 @@ func GenerateMarkdown(data Data, filename string) error {
 			addrs = append(addrs, addr)
 		}
 		sort.Strings(addrs)
-		sb.WriteString("| Remote Address | Ports |\n")
-		sb.WriteString("|------|----|\n")
+		sb.WriteString("| Remote Address | DNS Name | Ports |\n")
+		sb.WriteString("|------|----------|----|\n")
 		for _, addr := range addrs {
 			var ports []string
 			for _, p := range extMap[addr] {
 				ports = append(ports, fmt.Sprintf("%d", p))
 			}
 			sort.Strings(ports)
-			sb.WriteString(fmt.Sprintf("| `%s` | `%s` |\n", addr, strings.Join(ports, ", ")))
+			sb.WriteString(fmt.Sprintf("| `%s` | `%s` | `%s` |\n", addr, "", strings.Join(ports, ", ")))
 		}
 	}
 
@@ -140,10 +148,10 @@ func GenerateMarkdown(data Data, filename string) error {
 	if len(suspiciousConns) == 0 {
 		sb.WriteString("No suspicious connections found.\n\n")
 	} else {
-		sb.WriteString("| Process | PID | Remote Address | Port | State |\n")
-		sb.WriteString("|---------|---|-+------|--+---|---+---|\n")
+		sb.WriteString("| Process | PID | DNS Name | Remote Address | Port | State |\n")
+		sb.WriteString("|---------|---|----------|------|-----|-------|\n")
 		for _, c := range suspiciousConns {
-			sb.WriteString(fmt.Sprintf("| `%s` | %d | `%s` | %d | `%s` |\n", c.Process, c.ProcessID, c.RemoteAddr, c.RemotePort, c.State))
+			sb.WriteString(fmt.Sprintf("| `%s` | %d | `%s` | `%s` | %d | `%s` |\n", c.Process, c.ProcessID, c.DNSName, c.RemoteAddr, c.RemotePort, c.State))
 		}
 	}
 
@@ -173,6 +181,37 @@ func GenerateMarkdown(data Data, filename string) error {
 		sb.WriteString(fmt.Sprintf("| **MEDIUM** | %d |\n", medium))
 		sb.WriteString(fmt.Sprintf("| **LOW** | %d |\n", low))
 		sb.WriteString(fmt.Sprintf("| **TOTAL** | %d |\n", len(data.Risks)))
+	}
+
+	// Whitelisted connections
+	sb.WriteString("\n## Whitelisted Connections\n\n")
+	if len(data.Risks) > 0 {
+		var whitelisted []scanner.ConnectionRisk
+		for _, r := range data.Risks {
+			if r.IsWhitelisted {
+				whitelisted = append(whitelisted, r)
+			}
+		}
+		if len(whitelisted) == 0 {
+			sb.WriteString("No whitelisted connections detected.\n\n")
+		} else {
+			sb.WriteString("| Process | PID | Remote Address | Port | DNS Name | Comment |\n")
+			sb.WriteString("|---------|---|------|-----|----------|---------|\n")
+			for _, r := range whitelisted {
+				comment := ""
+				for _, w := range data.Whitelist {
+					if strings.EqualFold(w.IP, r.Connection.RemoteAddr) {
+						comment = sanitizeMarkdown(w.Comment)
+						break
+					}
+				}
+				sb.WriteString(fmt.Sprintf("| `%s` | %d | `%s` | %d | `%s` | `%s` |\n",
+					r.Process, r.ProcessID, r.RemoteAddr, r.RemotePort, r.DNSName, comment))
+			}
+			sb.WriteString("\n")
+		}
+	} else {
+		sb.WriteString("No whitelisted connections detected.\n\n")
 	}
 
 	// Top processes by network activity
@@ -244,22 +283,22 @@ func GenerateMarkdown(data Data, filename string) error {
 
 		if len(data.Baseline.New) > 0 {
 			sb.WriteString("### New Connections\n\n")
-			sb.WriteString("| Process | PID | Remote Address | Port | State |\n")
-			sb.WriteString("|---------|---|------|-----|-------|\n")
+			sb.WriteString("| Process | PID | DNS Name | Remote Address | Port | State |\n")
+			sb.WriteString("|---------|---|----------|------|-----|-------|\n")
 			for _, e := range data.Baseline.New {
-				sb.WriteString(fmt.Sprintf("| `%s` | %d | `%s` | %d | `%s` |\n",
-					e.Process, e.ProcessID, e.RemoteAddr, e.RemotePort, e.State))
+				sb.WriteString(fmt.Sprintf("| `%s` | %d | `%s` | `%s` | %d | `%s` |\n",
+					e.Process, e.ProcessID, "", e.RemoteAddr, e.RemotePort, e.State))
 			}
 			sb.WriteString("\n")
 		}
 
 		if len(data.Baseline.Gone) > 0 {
 			sb.WriteString("### Disappeared Connections\n\n")
-			sb.WriteString("| Process | PID | Remote Address | Port | State |\n")
-			sb.WriteString("|---------|---|------|-----|-------|\n")
+			sb.WriteString("| Process | PID | DNS Name | Remote Address | Port | State |\n")
+			sb.WriteString("|---------|---|----------|------|-----|-------|\n")
 			for _, e := range data.Baseline.Gone {
-				sb.WriteString(fmt.Sprintf("| `%s` | %d | `%s` | %d | `%s` |\n",
-					e.Process, e.ProcessID, e.RemoteAddr, e.RemotePort, e.State))
+				sb.WriteString(fmt.Sprintf("| `%s` | %d | `%s` | `%s` | %d | `%s` |\n",
+					e.Process, e.ProcessID, "", e.RemoteAddr, e.RemotePort, e.State))
 			}
 			sb.WriteString("\n")
 		}
@@ -281,6 +320,7 @@ func GenerateMarkdown(data Data, filename string) error {
 	sb.WriteString(fmt.Sprintf("| Medium risk connections | %d |\n", findings.MediumCount))
 	sb.WriteString(fmt.Sprintf("| Low risk connections | %d |\n", findings.LowCount))
 	sb.WriteString(fmt.Sprintf("| Privilege escalation risks | %d |\n", findings.PrivEscalationCount))
+	sb.WriteString(fmt.Sprintf("| Whitelisted connections | %d |\n", findings.WhitelistedCount))
 
 	return os.WriteFile(filename, []byte(sb.String()), 0644)
 }
@@ -298,7 +338,7 @@ func IsExternal(c scanner.Connection) bool {
 	return !strings.HasPrefix(ip, "127.") &&
 		!strings.HasPrefix(ip, "192.168.") &&
 		!strings.HasPrefix(ip, "10.") &&
-		!strings.HasPrefix(ip, "172.") &&
+		!scanner.IsPrivatePrefix(ip, "172") &&
 		!strings.HasPrefix(ip, "[::") &&
 		!strings.HasPrefix(ip, "[fe80::") &&
 		!strings.HasPrefix(ip, "[fd") &&
@@ -397,12 +437,20 @@ func countFindings(conns []scanner.Connection, risks []scanner.ConnectionRisk, p
 		if f.HighestRisk == "" || r.RiskLevel > f.HighestRisk {
 			f.HighestRisk = r.RiskLevel
 		}
+		if r.IsWhitelisted {
+			f.WhitelistedCount++
+		}
 	}
 	return f
 }
 
 func isSuspiciousPort(port int) bool {
 	return scanner.IsSuspiciousPort(port)
+}
+
+// sanitizeMarkdown escapes pipe characters and backticks in strings used in Markdown tables.
+func sanitizeMarkdown(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "|", "\\|"), "`", "\\`")
 }
 
 // GenerateJSON writes the full scan data as a JSON file.
@@ -417,8 +465,15 @@ func GenerateJSON(data Data, filename string) error {
 		Security    map[int]processinfo.Info `json:"security"`
 		Baseline    baseline.DiffResult      `json:"baseline"`
 		Findings    Findings                 `json:"findings"`
+		DNSLookups  int                      `json:"dns_lookups"`
 	}
 
+	dnsCount := 0
+	for _, c := range data.Connections {
+		if c.DNSName != "" {
+			dnsCount++
+		}
+	}
 	out := jsonReport{
 		Version:     version.Version,
 		ScanTime:    time.Now().Format(time.RFC3339),
@@ -429,6 +484,7 @@ func GenerateJSON(data Data, filename string) error {
 		Security:    data.Security,
 		Baseline:    data.Baseline,
 		Findings:    Summarize(data),
+		DNSLookups:  dnsCount,
 	}
 
 	f, err := os.Create(filename)
@@ -467,7 +523,7 @@ func writeConnectionsCSV(conns []scanner.Connection, filename string) error {
 	w := csv.NewWriter(f)
 	defer w.Flush()
 
-	header := []string{"ProcessID", "Process", "Executable", "LocalAddr", "LocalPort", "RemoteAddr", "RemotePort", "Protocol", "State", "Direction"}
+	header := []string{"ProcessID", "Process", "Executable", "LocalAddr", "LocalPort", "DNSName", "RemoteAddr", "RemotePort", "Protocol", "State", "Direction"}
 	if err := w.Write(header); err != nil {
 		return fmt.Errorf("failed to write CSV header: %w", err)
 	}
@@ -479,6 +535,7 @@ func writeConnectionsCSV(conns []scanner.Connection, filename string) error {
 			c.Executable,
 			c.LocalAddr,
 			fmt.Sprintf("%d", c.LocalPort),
+			c.DNSName,
 			c.RemoteAddr,
 			fmt.Sprintf("%d", c.RemotePort),
 			c.Protocol,

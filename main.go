@@ -28,6 +28,7 @@ var (
 	configFile     = flag.String("config", "config.json", "Path to config file")
 	outputDir      = flag.String("output", ".", "Output directory for reports")
 	daemonInterval = flag.Int("daemon", 0, "Run in daemon mode with scan interval in seconds (0 = one-shot)")
+	feedFile       = flag.String("feed", "", "Path to C2 threat intel JSON feed file")
 	help           = flag.Bool("h", false, "Show help")
 )
 
@@ -53,6 +54,7 @@ func main() {
 		cfg.Thresholds.CriticalThreshold, cfg.Thresholds.HighThreshold)
 	fmt.Printf("  Excluded PIDs: %d | Excluded processes: %d\n",
 		len(cfg.Excluded.PIDs), len(cfg.Excluded.Processes))
+	fmt.Printf("  Whitelisted IPs: %d\n", len(cfg.Whitelist))
 	fmt.Println()
 
 	if *daemonInterval > 0 {
@@ -82,6 +84,22 @@ func runScan(cfg *config.Config, outputDir string) {
 	fmt.Printf("  Security context gathered for %d processes\n", len(secInfo))
 	fmt.Printf("  Found %d processes\n", len(procs))
 	fmt.Printf("  Found %d network connections\n", len(conns))
+
+	// Perform DNS reverse lookup on outbound connections
+	dnsCount := 0
+	for i := range conns {
+		c := &conns[i]
+		if c.Direction == "outbound" && c.RemoteAddr != "" {
+			dnsName := dns.LookupDomain(c.RemoteAddr)
+			if dnsName != "" {
+				c.DNSName = dnsName
+				dnsCount++
+			}
+		}
+	}
+	if dnsCount > 0 {
+		fmt.Printf("  DNS lookups resolved: %d\n", dnsCount)
+	}
 	fmt.Println()
 
 	outboundCount := 0
@@ -110,7 +128,18 @@ func runScan(cfg *config.Config, outputDir string) {
 	// Load threat intelligence database
 	tiDB := threatintel.NewThreatIntelDB()
 	tiDB.AddIOCs(threatintel.KnownC2IPs)
-	fmt.Printf("  Threat intel loaded: %d indicators\n", tiDB.Count())
+	fmt.Printf("  Built-in threat intel: %d indicators\n", tiDB.Count())
+
+	if *feedFile != "" {
+		iocs, err := threatintel.GetFeedIOCs(*feedFile)
+		if err != nil {
+			log.Printf("Warning: failed to load feed %s: %v", *feedFile, err)
+		} else {
+			fmt.Printf("  + External feed %s: %d indicators\n", *feedFile, len(iocs))
+			tiDB.AddIOCs(iocs)
+			fmt.Printf("  Total threat intel: %d indicators\n", tiDB.Count())
+		}
+	}
 
 	risks := scanner.AssessConnectionRiskWithThreatIntel(conns, secInfo, cfg, tiDB)
 	critical, high, medium, low := 0, 0, 0, 0
@@ -227,6 +256,13 @@ func runScan(cfg *config.Config, outputDir string) {
 	}
 
 	fmt.Println("[5/5] Generating report...")
+	var whitelist []report.WhitelistedIP
+	for _, w := range cfg.Whitelist {
+		whitelist = append(whitelist, report.WhitelistedIP{
+			IP:      w.IP,
+			Comment: w.Comment,
+		})
+	}
 	reportData := report.Data{
 		System:      sysInfo,
 		Connections: conns,
@@ -234,6 +270,7 @@ func runScan(cfg *config.Config, outputDir string) {
 		Risks:       risks,
 		Security:    secInfo,
 		Baseline:    diff,
+		Whitelist:   whitelist,
 	}
 	timestamp := time.Now().Format("20060102_150405")
 	mdFile := fmt.Sprintf("%s/network_sentinel_%s_%s.md", outputDir, sysInfo.Hostname, timestamp)

@@ -14,7 +14,6 @@ var KnownC2IPs = []IOC{
 
 	// Metasploit
 	{Indicator: "103.94.176.182", IndicatorType: "ipv4", MalwareFamily: "Metasploit", FirstSeen: time.Date(2023, 2, 5, 0, 0, 0, 0, time.UTC), LastSeen: time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC), Country: "BD", Confidence: 85, Tags: []string{"c2", "metasploit"}, Source: "threatfox", Status: "active"},
-	{Indicator: "192.168.1.100", IndicatorType: "ipv4", MalwareFamily: "Metasploit", FirstSeen: time.Date(2023, 4, 1, 0, 0, 0, 0, time.UTC), LastSeen: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), Country: "US", Confidence: 70, Tags: []string{"c2", "metasploit", "test"}, Source: "threatfox", Status: "active"},
 
 	// Empire
 	{Indicator: "209.141.58.184", IndicatorType: "ipv4", MalwareFamily: "Empire", FirstSeen: time.Date(2023, 6, 12, 0, 0, 0, 0, time.UTC), LastSeen: time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC), Country: "US", Confidence: 82, Tags: []string{"c2", "empire", "powershell"}, Source: "threatfox", Status: "active"},

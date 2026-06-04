@@ -343,11 +343,58 @@ THREAT_INTEL: CobaltStrike (threatfox) confidence=95 country=RU tags=[c2, cobalt
 
 ### Updating Feeds
 
-The built-in feed is a representative subset from open-source threat intelligence (ThreatFox, C2-Tracker, Spamhaus Xanadu). To update with fresh indicators:
+NetworkSentinel supports two methods for updating threat intel feeds:
 
-1. **Download a new feed** — Choose a source (see below)
-2. **Add indicators to the code** — Edit `threatintel/feeds.go` and append new `IOC` structs to `KnownC2IPs`
-3. **Rebuild** — `GOOS=darwin GOARCH=arm64 go build -o networksentinel_darwin .`
+#### Method 1: External JSON Feed File (Recommended)
+
+Load a JSON feed file at runtime without rebuilding:
+
+```bash
+# Download ThreatFox feed
+curl -s https://threatfox.abuse.ch/api/v1/export/json/ | python3 -c "
+import json, sys, re
+data = json.load(sys.stdin)
+iocs = []
+seen = set()
+for ioc in data.get('iocs', [])[:100]:
+    ip = ioc.get('ip', '')
+    malware = ioc.get('malware', 'Unknown')
+    country = ioc.get('country', '??')
+    if ip and ip not in seen:
+        seen.add(ip)
+        iocs.append({'indicator': ip, 'indicator_type': 'ipv4', 'malware_family': malware, 'country': country, 'confidence': 85, 'tags': ['c2'], 'source': 'threatfox', 'status': 'active'})
+print(json.dumps(iocs, indent=2))
+" > threatintel_feed.json
+
+# Run with feed
+./networksentinel_darwin -feed threatintel_feed.json
+```
+
+**Feed format** (`threatintel_feed.json`):
+```json
+[
+  {
+    "indicator": "185.141.22.206",
+    "indicator_type": "ipv4",
+    "malware_family": "CobaltStrike",
+    "first_seen": "2024-01-15T00:00:00Z",
+    "last_seen": "2024-06-01T00:00:00Z",
+    "country": "RU",
+    "confidence": 95,
+    "tags": ["c2", "cobalt-strike", "rat"],
+    "source": "threatfox",
+    "status": "active"
+  }
+]
+```
+
+#### Method 2: Code-Based (Rebuild Required)
+
+For permanent updates, edit `threatintel/feeds.go` and add new `IOC` structs to `KnownC2IPs`, then rebuild:
+
+```bash
+GOOS=darwin GOARCH=arm64 go build -o networksentinel_darwin .
+```
 
 **Recommended feed sources:**
 
@@ -359,39 +406,17 @@ The built-in feed is a representative subset from open-source threat intelligenc
 | AbuseIPDB | JSON/Plaintext | Broad IP abuse intelligence with confidence scores |
 | PhishStats | JSON | Phishing infrastructure and URLs |
 
-**Example: Adding from ThreatFox**
-
-```bash
-# Download ThreatFox feed
-curl -s https://threatfox.abuse.ch/export/tcp/json/ | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-for ioc in data['iocs'][:50]:  # top 50
-    print(f'{ioc[\"ip\"]} {ioc[\"malware\"]} {ioc[\"country\"]} {ioc[\"port\"]}')
-"
-```
-
-Then add the indicators to `threatintel/feeds.go`:
-
-```go
-var KnownC2IPs = []IOC{
-    // ... existing indicators ...
-    {Indicator: "185.141.22.206", IndicatorType: "ipv4", MalwareFamily: "NewC2Framework", FirstSeen: time.Now(), LastSeen: time.Now(), Country: "US", Confidence: 90, Tags: []string{"c2", "new-framework"}, Source: "threatfox", Status: "active", Port: 443},
-}
-```
-
 **Automating updates with a script**
 
 Create `update-feeds.sh` in your project directory:
 
 ```bash
 #!/bin/bash
-# Download and prepare ThreatFox indicators for manual addition
-curl -s https://threatfox.abuse.ch/api/v1/browse/ | \
-    python3 -c "
-import json, sys, re
+# Download and prepare ThreatFox indicators as JSON feed
+curl -s https://threatfox.abuse.ch/api/v1/export/json/ | python3 -c "
+import json, sys
 data = json.load(sys.stdin)
-# Extract unique IPs with malware family
+iocs = []
 seen = set()
 for ioc in data.get('iocs', [])[:100]:
     ip = ioc.get('ip', '')
@@ -399,10 +424,12 @@ for ioc in data.get('iocs', [])[:100]:
     country = ioc.get('country', '??')
     if ip and ip not in seen:
         seen.add(ip)
-        print(f'# ThreatFox: {ip} ({malware}, {country})')
-" > threatfox_indicators.txt
+        iocs.append({'indicator': ip, 'indicator_type': 'ipv4', 'malware_family': malware, 'country': country, 'confidence': 85, 'tags': ['c2'], 'source': 'threatfox', 'status': 'active'})
+print(json.dumps(iocs, indent=2))
+" > threatintel_feed.json
 
-echo "Review threatfox_indicators.txt and manually add new IOC structs to threatintel/feeds.go"
+echo "Feed saved to threatintel_feed.json"
+echo "Run: ./networksentinel_darwin -feed threatintel_feed.json"
 ```
 
 **Update frequency recommendation:** Update threat intel feeds weekly for production environments, or daily if running continuous monitoring.

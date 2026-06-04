@@ -293,11 +293,58 @@ THREAT_INTEL: CobaltStrike (threatfox) confidence=95 country=RU tags=[c2, cobalt
 
 ### 更新数据源
 
-内置数据源是来自开源威胁情报（ThreatFox、C2-Tracker、Spamhaus Xanadu）的代表性子集。要使用最新指标进行更新：
+NetworkSentinel 支持两种更新威胁情报源的方法：
 
-1. **下载新数据源** — 选择来源（见下文）
-2. **将指标添加到代码中** — 编辑 `threatintel/feeds.go` 并向 `KnownC2IPs` 追加新的 `IOC` 结构体
-3. **重新编译** — `go build -o networksentinel.exe .`
+#### 方法 1：外部 JSON 数据源文件（推荐）
+
+在运行时加载 JSON 数据源文件，无需重新编译：
+
+```powershell
+# 下载 ThreatFox 数据源
+curl -s https://threatfox.abuse.ch/api/v1/export/json/ | python3 -c "
+import json, sys, re
+data = json.load(sys.stdin)
+iocs = []
+seen = set()
+for ioc in data.get('iocs', [])[:100]:
+    ip = ioc.get('ip', '')
+    malware = ioc.get('malware', 'Unknown')
+    country = ioc.get('country', '??')
+    if ip and ip not in seen:
+        seen.add(ip)
+        iocs.append({'indicator': ip, 'indicator_type': 'ipv4', 'malware_family': malware, 'country': country, 'confidence': 85, 'tags': ['c2'], 'source': 'threatfox', 'status': 'active'})
+print(json.dumps(iocs, indent=2))
+" > threatintel_feed.json
+
+# 使用数据源运行
+.\networksentinel.exe -feed threatintel_feed.json
+```
+
+**数据源格式**（`threatintel_feed.json`）：
+```json
+[
+  {
+    "indicator": "185.141.22.206",
+    "indicator_type": "ipv4",
+    "malware_family": "CobaltStrike",
+    "first_seen": "2024-01-15T00:00:00Z",
+    "last_seen": "2024-06-01T00:00:00Z",
+    "country": "RU",
+    "confidence": 95,
+    "tags": ["c2", "cobalt-strike", "rat"],
+    "source": "threatfox",
+    "status": "active"
+  }
+]
+```
+
+#### 方法 2：基于代码的更新（需要重新编译）
+
+对于永久更新，编辑 `threatintel/feeds.go` 并向 `KnownC2IPs` 添加新的 `IOC` 结构体，然后重新编译：
+
+```powershell
+go build -o networksentinel.exe .
+```
 
 **推荐的数据源：**
 
@@ -309,49 +356,36 @@ THREAT_INTEL: CobaltStrike (threatfox) confidence=95 country=RU tags=[c2, cobalt
 | AbuseIPDB | JSON/纯文本 | 带置信度评分的广泛 IP 滥用情报 |
 | PhishStats | JSON | 钓鱼基础设施和 URL |
 
-**示例：从 ThreatFox 添加**
-
-```powershell
-# 下载 ThreatFox 数据源
-curl -s https://threatfox.abuse.ch/export/tcp/json/ | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-for ioc in data['iocs'][:50]:  # 前 50 个
-    print(f'{ioc[\"ip\"]} {ioc[\"malware\"]} {ioc[\"country\"]} {ioc[\"port\"]}')
-"
-```
-
-然后添加到 `threatintel/feeds.go`：
-
-```go
-var KnownC2IPs = []IOC{
-    // ... 现有指标 ...
-    {Indicator: "185.141.22.206", IndicatorType: "ipv4", MalwareFamily: "NewC2Framework", FirstSeen: time.Now(), LastSeen: time.Now(), Country: "US", Confidence: 90, Tags: []string{"c2", "new-framework"}, Source: "threatfox", Status: "active", Port: 443},
-}
-```
-
 **使用脚本自动化更新**
 
-在项目目录中创建 `update-feeds.sh`：
+在项目目录中创建 `update-feeds.ps1`：
 
-```bash
-#!/bin/bash
-# 下载并准备 ThreatFox 指标供手动添加
-curl -s https://threatfox.abuse.ch/api/v1/browse/ | \
-    python3 -c "
-import json, sys, re
-data = json.load(sys.stdin)
-seen = set()
-for ioc in data.get('iocs', [])[:100]:
-    ip = ioc.get('ip', '')
-    malware = ioc.get('malware', 'Unknown')
-    country = ioc.get('country', '??')
-    if ip and ip not in seen:
-        seen.add(ip)
-        print(f'# ThreatFox: {ip} ({malware}, {country})')
-" > threatfox_indicators.txt
-
-echo "查看 threatfox_indicators.txt 并将新的 IOC 结构体添加到 threatintel/feeds.go"
+```powershell
+# 下载并准备 ThreatFox 指标为 JSON 数据源
+$feed = Invoke-RestMethod -Uri "https://threatfox.abuse.ch/api/v1/export/json/"
+$iocs = @()
+$seen = @{}
+foreach ($ioc in $feed.iocs[0..99]) {
+    $ip = $ioc.ip
+    $malware = $ioc.malware
+    $country = $ioc.country
+    if ($ip -and -not $seen.ContainsKey($ip)) {
+        $seen[$ip] = $true
+        $iocs += @{
+            indicator = $ip
+            indicator_type = "ipv4"
+            malware_family = $malware
+            country = $country
+            confidence = 85
+            tags = @("c2")
+            source = "threatfox"
+            status = "active"
+        }
+    }
+}
+$iocs | ConvertTo-Json -Depth 5 > threatintel_feed.json
+Write-Host "数据源已保存到 threatintel_feed.json"
+Write-Host "运行: .\networksentinel.exe -feed threatintel_feed.json"
 ```
 
 **更新频率建议：** 生产环境中每周更新威胁情报源，或连续监控时每日更新。

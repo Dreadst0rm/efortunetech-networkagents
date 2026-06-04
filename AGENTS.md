@@ -50,3 +50,13 @@ Key implementation:
 - **Go strings.Builder double-paren**: Easy to accidentally add extra `)` in sb.WriteString() calls. Always verify after editing.
 - **Build verification**: Always run `go build` after any code change before proceeding to avoid cascading errors.
 - **No CGo on Windows**: For Windows-specific features (token/elevation checks), use PowerShell via `exec.Command` or syscall — never CGo/CGO_ENABLED=1
+- **Slice modification in range loops**: `for _, c := range conns` copies values. Use `for i := range conns { c := &conns[i] }` to modify slice elements.
+- **DNS timeout**: Always wrap `net.LookupAddr` or `net.Resolver` calls with `context.WithTimeout(2s)` — never use raw DNS calls without timeout. `net.Resolver` does not have a `Timeout` field.
+- **Config validation**: Validate all user-provided config values at load time. Use `net.ParseIP()` to reject invalid IPs in whitelist entries. Clear invalid entries, don't crash.
+- **Markdown table sanitization**: Escape `|` and `` ` `` characters in user-provided strings before writing to Markdown tables. Use `strings.ReplaceAll(s, "|", "\\|")` and `strings.ReplaceAll(s, "`", "\\`")`.
+- **go.mod version**: Match your toolchain. Use `go 1.26` (not `1.26.2` — patch versions don't go in go.mod).
+- **Cover story for HighestRisk**: `scanner.RiskLevel` is a string type. String comparison `"critical" > "medium"` is false alphabetically. The `>` comparison in `AssessConnectionRisk` picks the first risk as highest — existing code, not a new bug.
+- **Security review checklist**: When reviewing new code, check: (1) secrets/credentials, (2) shell injection in exec.Command, (3) input validation, (4) output encoding, (5) dependency CVEs, (6) file path safety.
+- **Karpathy guidelines**: Think before coding (surface tradeoffs), simplicity first (200 lines → 50), surgical changes (touch only what's requested), goal-driven execution (verifiable success criteria).
+- **PowerShell output**: Use `Select-Object -First N` instead of `| head`. Use `Get-ChildItem` with `Where-Object` for filtering. Use `ForEach-Object` for iteration.
+- **Go test coverage**: Use `go test ./... -coverprofile=c.out` then `go tool cover -func c.out` for per-function coverage detail. All packages must pass before proceeding.
