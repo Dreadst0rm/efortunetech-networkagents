@@ -1,94 +1,94 @@
-# NetworkSentinel — Windows 使用指南
+# NetworkSentinel — Windows Guide
 
-## 概述
+## Overview
 
-NetworkSentinel 是一个 Go 编写的网络安全分析工具，用于扫描本机网络连接、关联进程、执行多启发式风险评估，并生成报告。
+NetworkSentinel is a Go-based network security analysis tool that scans local network connections, correlates them to processes, performs multi-heuristic risk scoring, and generates reports.
 
-**版本**: 0.4.0
-**许可证**: Apache 2.0
-**运行平台**: Windows 10/11, Windows Server 2016+ (x64)
+**Version**: 0.4.0
+**License**: Apache 2.0
+**Platform**: Windows 10/11, Windows Server 2016+ (x64)
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 1. 运行扫描
+### 1. Run a Scan
 
 ```powershell
 .\networksentinel.exe
 ```
 
-这将执行一次完整扫描，输出结果到控制台，并生成以下文件：
+This performs a full scan, outputs results to the console, and generates the following files:
 
 ```
-network_sentinel_<主机名>_<时间戳>.md   — Markdown 报告
-network_sentinel_<主机名>_<时间戳>.json — JSON 报告
-network_sentinel_<主机名>_<时间戳>_connections.csv  — 连接数据
-network_sentinel_<主机名>_<时间戳>_risks.csv        — 风险评估
-baseline.json                                           — 基线快照
+network_sentinel_<hostname>_<timestamp>.md   — Markdown report
+network_sentinel_<hostname>_<timestamp>.json — JSON report
+network_sentinel_<hostname>_<timestamp>_connections.csv  — Connection data
+network_sentinel_<hostname>_<timestamp>_risks.csv        — Risk analysis
+baseline.json                                           — Baseline snapshot
 ```
 
-### 2. 查看报告
+### 2. View Reports
 
-打开生成的 Markdown 报告，它包含：
+Open the generated Markdown report. It contains:
 
-- **系统信息** — 主机名、操作系统、本地 IP
-- **网络连接摘要** — 总连接数、出站/入站/内部连接数、TCP 状态分布
-- **外部端点** — 远程地址和端口列表
-- **可疑连接** — 被标记的连接
-- **风险评估摘要** — Critical / High / Medium / Low 数量
-- **按网络活动排序的进程** — Top 20 进程
-- **特权升级分析** — 检测到的特权升级链
-- **基线对比** — 新增/消失/未变的连接
+- **System Information** — hostname, OS, local IPs
+- **Network Connections Summary** — total connections, outbound/inbound/internal counts, TCP state distribution
+- **External Endpoints** — remote address and port listing
+- **Suspicious Connections** — flagged connections
+- **Risk Analysis Summary** — Critical / High / Medium / Low counts
+- **Top Processes by Network Activity** — Top 20 processes
+- **Privilege Escalation Analysis** — detected privilege escalation chains
+- **Baseline Comparison** — new / gone / unchanged connections
 
 ---
 
-## 命令行参数
+## Command-Line Arguments
 
 ```
 Usage of networksentinel.exe:
   -config string
-        配置文件路径 (默认 "config.json")
+        Path to config file (default "config.json")
   -daemon int
-        守护进程模式扫描间隔（秒），0 = 单次模式
-  -h    显示帮助
+        Run in daemon mode with scan interval in seconds (0 = one-shot)
+  -h    Show help
   -output string
-        报告输出目录 (默认 ".")
+        Output directory for reports (default ".")
 ```
 
-### 示例
+### Examples
 
-**单次扫描（默认）：**
+**One-shot scan (default):**
 ```powershell
 .\networksentinel.exe
 ```
 
-**指定配置文件：**
+**Specify a config file:**
 ```powershell
 .\networksentinel.exe -config C:\tools\sentinel_config.json
 ```
 
-**指定输出目录：**
+**Specify output directory:**
 ```powershell
 .\networksentinel.exe -output C:\reports
 ```
 
-**守护进程模式（每 60 秒扫描一次）：**
+**Daemon mode (scan every 60 seconds):**
 ```powershell
 .\networksentinel.exe -daemon 60
 ```
 
-按 `Ctrl+C` 停止守护进程。
+Press `Ctrl+C` to stop the daemon.
 
 ---
 
-## 配置文件
+## Configuration
 
-### 位置
+### Location
 
-默认 `config.json`，与 `networksentinel.exe` 在同一目录。
+Default `config.json`, in the same directory as `networksentinel.exe`.
 
-### 结构
+### Structure
 
 ```json
 {
@@ -102,6 +102,10 @@ Usage of networksentinel.exe:
     "pids": [],
     "processes": []
   },
+  "whitelist": [
+    {"ip": "8.8.8.8", "comment": "Google DNS"},
+    {"ip": "1.1.1.1", "comment": "Cloudflare DNS"}
+  ],
   "dns_log": false,
   "alerting": {
     "webhook_url": "",
@@ -110,20 +114,20 @@ Usage of networksentinel.exe:
 }
 ```
 
-### 参数说明
+### Parameter Descriptions
 
-#### thresholds（阈值）
+#### thresholds
 
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `min_ip_connections` | int | 5 | 同一远程 IP 的出站连接数达到此值时触发告警 |
-| `min_process_connections` | int | 5 | 同一进程的出站连接数达到此值时触发告警 |
-| `critical_threshold` | int | 3 | 需要多少条启发式原因才能标记为 Critical |
-| `high_threshold` | int | 2 | 需要多少条启发式原因才能标记为 High |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `min_ip_connections` | int | 5 | Outbound connections to the same remote IP that triggers an alert |
+| `min_process_connections` | int | 5 | Outbound connections from the same process that triggers an alert |
+| `critical_threshold` | int | 3 | Number of heuristic reasons needed to mark a connection as Critical |
+| `high_threshold` | int | 2 | Number of heuristic reasons needed to mark a connection as High |
 
-#### excluded（排除项）
+#### excluded
 
-跳过特定 PID 或进程名的扫描。常用于排除已知安全的系统进程。
+Skip scanning for specific PIDs or process names. Commonly used to exclude known-safe system processes.
 
 ```json
 "excluded": {
@@ -132,31 +136,43 @@ Usage of networksentinel.exe:
 }
 ```
 
-#### dns_log（DNS 日志）
+#### whitelist
 
-启用后，NetworkSentinel 会通过 PowerShell WMI 查询 DNS 客户端缓存，并对域名进行可疑性评分。
+Mark IP addresses as trusted with an optional comment explaining why. Whitelisted IPs skip suspicious port and process heuristics.
+
+```json
+"whitelist": [
+  {"ip": "8.8.8.8", "comment": "Google Public DNS"},
+  {"ip": "1.1.1.1", "comment": "Cloudflare DNS"},
+  {"ip": "185.199.109.133", "comment": "GitHub CDN"}
+]
+```
+
+#### dns_log (DNS logging)
+
+When enabled, NetworkSentinel queries the DNS client cache via PowerShell WMI and scores domain names for suspiciousness.
 
 ```json
 "dns_log": true
 ```
 
-**Windows DNS 采集方式：** `Get-CimInstance MSFT_DNSClientCache`
+**Windows DNS capture method:** `Get-CimInstance MSFT_DNSClientCache`
 
-**域名可疑性评分因素：**
+**Domain suspiciousness scoring factors:**
 
-| 因素 | 评分 |
-|------|------|
-| 可疑 TLD（.xyz, .tk, .ml, .ga, .cf, .ru, .cn 等） | 0.4 - 0.7 |
-| 高子域名深度（>= 4 个点） | +0.3 |
-| 可疑关键词（login, account, secure, verify, admin, banking, crypto 等） | +0.2 |
-| 域名过长（> 50 字符） | +0.4 |
-| 高辅音比例（> 5:1） | +0.3 |
+| Factor | Score |
+|--------|-------|
+| Suspicious TLD (.xyz, .tk, .ml, .ga, .cf, .ru, .cn, etc.) | 0.4 - 0.7 |
+| High subdomain depth (>= 4 dots) | +0.3 |
+| Suspicious keywords (login, account, secure, verify, admin, banking, crypto, etc.) | +0.2 |
+| Long domain name (> 50 characters) | +0.4 |
+| High consonant ratio (> 5:1) | +0.3 |
 
-评分 >= 0.6 标记为可疑。
+Score >= 0.6 is flagged as suspicious.
 
-#### alerting（告警）
+#### alerting
 
-启用后，Critical 和 High 风险连接会通过 Webhook 和标准错误输出告警。
+When enabled, Critical and High risk connections are alerted via Webhook and stderr.
 
 ```json
 "alerting": {
@@ -165,12 +181,12 @@ Usage of networksentinel.exe:
 }
 ```
 
-**告警输出格式（stderr）：**
+**Alert output format (stderr):**
 ```
 [2026-06-03 14:30:00] [CRITICAL] stdout: chrome.exe (PID: 3076) -> 173.194.64.188:5228
 ```
 
-**告警 JSON payload（Webhook POST）：**
+**Alert JSON payload (Webhook POST):**
 ```json
 {
   "timestamp": "2026-06-03T14:30:00.1234567-05:00",
@@ -182,34 +198,34 @@ Usage of networksentinel.exe:
 
 ---
 
-## 风险评估
+## Risk Assessment
 
-### 6 大启发式规则
+### 6 Heuristic Rules
 
-所有规则仅针对 **出站（outbound）** 连接进行评估。
+All rules are evaluated only for **outbound (outbound)** connections.
 
-#### 1. 可疑端口检测
+#### 1. Suspicious Port Detection
 
-检查远程端口是否匹配已知 C2/代理端口：
+Checks remote ports against known C2/proxy ports:
 
-| 端口 | 常见用途 |
-|------|----------|
-| 4444 | Metasploit 默认 |
+| Port | Common Use |
+|------|------------|
+| 4444 | Metasploit default |
 | 5555 | Android Debug Bridge |
 | 6666-6669 | IRC / C2 |
-| 7777 | 常见后门 |
-| 8888 / 9999 | 代理 / 开发服务器 |
-| 1080 / 1081 | SOCKS 代理 |
-| 3128 | Squid 代理 |
-| 8080 / 8443 | 代理 / 替代 HTTPS |
-| 1337 | 常见 C2 |
+| 7777 | Common backdoor |
+| 8888 / 9999 | Proxy / dev server |
+| 1080 / 1081 | SOCKS proxy |
+| 3128 | Squid proxy |
+| 8080 / 8443 | Proxy / alt HTTPS |
+| 1337 | Common C2 |
 | 9001 / 9050 / 9051 | Tor |
-| 2525 / 4242-4244 | 各种 C2 |
-| 1234 | 常见后门 |
+| 2525 / 4242-4244 | Various C2 |
+| 1234 | Common backdoor |
 
-#### 2. 可疑进程名
+#### 2. Suspicious Process Names
 
-检查进程是否在 Windows 可疑进程列表中：
+Checks if the process is in the Windows suspicious process list:
 
 ```
 cmd.exe, powershell.exe, wscript.exe, cscript.exe, wmic.exe,
@@ -218,89 +234,89 @@ curl.exe, netsh.exe, sc.exe, whoami.exe, mshta.exe,
 regsvr32.exe, msbuild.exe, tasklist.exe, ipconfig.exe
 ```
 
-#### 3. 异常 TCP 状态
+#### 3. Abnormal TCP States
 
-检测以下 TCP 状态（可能指示扫描或隐蔽通道）：
+Detects TCP states that may indicate scanning or covert channels:
 
-- `SYN_SENT` — 连接正在建立
-- `SYN_RECEIVED` — 连接等待完成
-- `TIME_WAIT` — 连接正在关闭
-- `CLOSE_WAIT` — 远程端已关闭连接
+- `SYN_SENT` — Connection establishing
+- `SYN_RECEIVED` — Connection completing handshake
+- `TIME_WAIT` — Connection closing
+- `CLOSE_WAIT` — Remote side closed connection
 
-#### 4. 高 IP 连接数
+#### 4. High IP Connection Count
 
-同一远程 IP 的出站连接数超过 `min_ip_connections` 阈值。
+Outbound connections to the same remote IP exceed the `min_ip_connections` threshold.
 
-#### 5. 高进程连接数
+#### 5. High Process Connection Count
 
-同一进程的出站连接数超过 `min_process_connections` 阈值。
+Outbound connections from the same process exceed the `min_process_connections` threshold.
 
-#### 6. 特权升级链检测
+#### 6. Privilege Escalation Chain Detection
 
-检测以下危险组合：
+Detects dangerous combinations:
 
-| 组合 | 说明 |
-|------|------|
-| 提升 + 未签名 + 临时路径 | 最高风险 |
-| 提升 + 未签名 | 中等风险 |
-| 提升 + 临时路径 | 中等风险 |
+| Combination | Description |
+|-------------|-------------|
+| Elevated + unsigned + temp path | Highest risk |
+| Elevated + unsigned | Medium risk |
+| Elevated + temp path | Medium risk |
 
-**检测内容：**
-- **特权级别** — 通过 PowerShell 查询令牌提升状态
-- **代码签名** — 通过 Authenticode 验证
-- **执行路径** — 检查是否位于 temp/tmp/AppData\Local\Temp
-- **完整性级别** — Low / Medium / High / System
+**Detection details:**
+- **Privilege level** — Queried via PowerShell token elevation
+- **Code signing** — Verified via Authenticode
+- **Execution path** — Checks for temp/tmp/AppData\Local\Temp
+- **Integrity level** — Low / Medium / High / System
 
-### 风险等级
+### Risk Levels
 
-| 等级 | 条件 |
-|------|------|
-| **Critical** | >= `critical_threshold` 条启发式原因（默认 3） |
-| **High** | >= `high_threshold` 条启发式原因（默认 2） |
-| **Medium** | 恰好 1 条启发式原因 |
-| **Low** | 0 条原因（不输出） |
+| Level | Condition |
+|-------|-----------|
+| **Critical** | >= `critical_threshold` heuristic reasons (default 3) |
+| **High** | >= `high_threshold` heuristic reasons (default 2) |
+| **Medium** | Exactly 1 heuristic reason |
+| **Low** | 0 reasons (no output) |
 
 ---
 
-## 威胁情报源
+## Threat Intelligence
 
-NetworkSentinel 内置了对已知 C2（命令与控制）基础设施的威胁情报匹配功能。当连接或 DNS 查询匹配已知指标时，风险评估会提升并包含详细的威胁情报上下文。
+NetworkSentinel includes built-in threat intelligence matching against known C2 (command and control) infrastructure. When a connection or DNS query matches a known indicator, the risk assessment is elevated and includes detailed threat intel context.
 
-### 内置数据源
+### Built-in Data Sources
 
-工具内置 **33 个指标**（22 个 IP 地址，11 个域名），涵盖：
+The tool includes **32 indicators** (21 IPv4 addresses, 11 domains) covering:
 
-| 类别 | 数量 | 示例 |
-|------|------|------|
-| C2 框架 | 10 | CobaltStrike, Metasploit, Empire, Sliver, BruteRatel, Covenant, Mythic, Deimos, Havoc, Caldera |
-| 恶意软件家族 | 9 | LummaStealer, MeduzaStealer, QuasarRAT, DarkComet, njRAT, RemcosRAT, PoisonIvy, AsyncRAT, ShadowPad |
-| 钓鱼域名 | 11 | secure-login-verify.tk, account-verify-secure.xyz, portal-auth-verify.top 等 |
+| Category | Count | Examples |
+|----------|-------|----------|
+| C2 Frameworks | 10 | CobaltStrike, Metasploit, Empire, Sliver, BruteRatel, Covenant, Mythic, Deimos, Havoc, Caldera |
+| Malware Families | 9 | LummaStealer, MeduzaStealer, QuasarRAT, DarkComet, njRAT, RemcosRAT, PoisonIvy, AsyncRAT, ShadowPad |
+| Phishing Domains | 11 | secure-login-verify.tk, account-verify-secure.xyz, portal-auth-verify.top, etc. |
 
-每个指标包含：恶意软件家族名称、首次/最后出现日期、国家代码、置信度评分（0-100）、标签、来源数据源和状态。
+Each indicator includes: malware family name, first/last seen date, country code, confidence score (0-100), tags, source data source, and status.
 
-### 工作原理
+### How It Works
 
-在风险评估期间，每个出站连接的远程地址会与 C2 数据库进行交叉检查。DNS 查询也会被交叉引用。当匹配到已知指标时：
+During risk assessment, each outbound connection's remote address is cross-referenced against the C2 database. DNS queries are also cross-referenced. When a match is found:
 
-- **置信度 >= 90** → 风险等级提升至 **Critical**
-- **置信度 >= 80** → 风险等级提升至 **High**（如果尚未更高）
-- 添加 `THREAT_INTEL` 原因，包含恶意软件家族、来源、置信度、国家和标签
+- **Confidence >= 90** → Risk level elevated to **Critical**
+- **Confidence >= 80** → Risk level elevated to **High** (if not already higher)
+- Adds `THREAT_INTEL` reason with malware family, source, confidence, country, and tags
 
-报告示例：
+Report example:
 ```
 THREAT_INTEL: CobaltStrike (threatfox) confidence=95 country=RU tags=[c2, cobalt-strike, rat]
 ```
 
-### 更新数据源
+### Updating Data Sources
 
-NetworkSentinel 支持两种更新威胁情报源的方法：
+NetworkSentinel supports two methods for updating threat intelligence:
 
-#### 方法 1：外部 JSON 数据源文件（推荐）
+#### Method 1: External JSON Feed File (Recommended)
 
-在运行时加载 JSON 数据源文件，无需重新编译：
+Load a JSON feed file at runtime without recompiling:
 
 ```powershell
-# 下载 ThreatFox 数据源
+# Download ThreatFox feed
 curl -s https://threatfox.abuse.ch/api/v1/export/json/ | python3 -c "
 import json, sys, re
 data = json.load(sys.stdin)
@@ -316,11 +332,11 @@ for ioc in data.get('iocs', [])[:100]:
 print(json.dumps(iocs, indent=2))
 " > threatintel_feed.json
 
-# 使用数据源运行
+# Run with the feed
 .\networksentinel.exe -feed threatintel_feed.json
 ```
 
-**数据源格式**（`threatintel_feed.json`）：
+**Feed format** (`threatintel_feed.json`):
 ```json
 [
   {
@@ -338,30 +354,30 @@ print(json.dumps(iocs, indent=2))
 ]
 ```
 
-#### 方法 2：基于代码的更新（需要重新编译）
+#### Method 2: Code-Based Updates (Requires Rebuild)
 
-对于永久更新，编辑 `threatintel/feeds.go` 并向 `KnownC2IPs` 添加新的 `IOC` 结构体，然后重新编译：
+For permanent updates, edit `threatintel/feeds.go` and add new `IOC` structs to `KnownC2IPs`, then rebuild:
 
 ```powershell
 go build -o networksentinel.exe .
 ```
 
-**推荐的数据源：**
+**Recommended feeds:**
 
-| 来源 | 格式 | 覆盖内容 |
-|------|------|----------|
-| ThreatFox (abuse.ch) | JSON API | Cobalt Strike、Metasploit、Empire、Sliver 等 50+ 框架的 C2 IP 和域名 |
-| C2-Tracker (montysecurity) | 纯文本 | 来自 Shodan/Censys 的社区维护 C2 基础设施 |
-| Spamhaus Xanadu | 纯文本 | 高信誉 C2 IP 黑名单 |
-| AbuseIPDB | JSON/纯文本 | 带置信度评分的广泛 IP 滥用情报 |
-| PhishStats | JSON | 钓鱼基础设施和 URL |
+| Source | Format | Coverage |
+|--------|--------|----------|
+| ThreatFox (abuse.ch) | JSON API | C2 IPs and domains for 50+ frameworks: Cobalt Strike, Metasploit, Empire, Sliver, etc. |
+| C2-Tracker (montysecurity) | Plain text | Community-maintained C2 infrastructure from Shodan/Censys |
+| Spamhaus Xanadu | Plain text | High-confidence C2 IP blacklist |
+| AbuseIPDB | JSON/plain text | Broad IP abuse intelligence with confidence scores |
+| PhishStats | JSON | Phishing infrastructure and URLs |
 
-**使用脚本自动化更新**
+**Automate updates with a script**
 
-在项目目录中创建 `update-feeds.ps1`：
+Create `update-feeds.ps1` in the project directory:
 
 ```powershell
-# 下载并准备 ThreatFox 指标为 JSON 数据源
+# Download and prepare ThreatFox indicators as JSON feed
 $feed = Invoke-RestMethod -Uri "https://threatfox.abuse.ch/api/v1/export/json/"
 $iocs = @()
 $seen = @{}
@@ -384,42 +400,42 @@ foreach ($ioc in $feed.iocs[0..99]) {
     }
 }
 $iocs | ConvertTo-Json -Depth 5 > threatintel_feed.json
-Write-Host "数据源已保存到 threatintel_feed.json"
-Write-Host "运行: .\networksentinel.exe -feed threatintel_feed.json"
+Write-Host "Feed saved to threatintel_feed.json"
+Write-Host "Run: .\networksentinel.exe -feed threatintel_feed.json"
 ```
 
-**更新频率建议：** 生产环境中每周更新威胁情报源，或连续监控时每日更新。
+**Update frequency recommendation:** Weekly in production, or daily with continuous monitoring.
 
 ---
 
-## 基线对比
+## Baseline Comparison
 
-每次扫描后，NetworkSentinel 会自动保存当前连接快照到 `baseline.json`。下次运行时，会将当前连接与基线对比：
+After each scan, NetworkSentinel automatically saves the current connection snapshot to `baseline.json`. On the next run, it compares current connections against the baseline:
 
-- **New** — 新增连接
-- **Gone** — 消失的连接
-- **Unchanged** — 未变的连接
+- **New** — connections not seen before
+- **Gone** — connections that disappeared
+- **Unchanged** — connections present in both scans
 
-首次运行时没有基线，会创建一个新的。
+On first run there is no baseline; a new one is created.
 
 ---
 
-## 守护进程模式
+## Daemon Mode
 
 ```powershell
 .\networksentinel.exe -daemon 60
 ```
 
-- 每 60 秒执行一次完整扫描
-- 每次扫描都会保存新的基线
-- 每次扫描都会生成带时间戳的报告文件
-- 按 `Ctrl+C` 优雅退出
+- Runs a full scan every 60 seconds
+- Each scan saves a new baseline
+- Each scan generates a timestamped report file
+- Press `Ctrl+C` to gracefully exit
 
 ---
 
-## 输出文件详解
+## Output File Details
 
-### Markdown 报告
+### Markdown Report
 
 ```markdown
 # Network Sentinel Report
@@ -444,7 +460,7 @@ PID    | Process      | Privilege | Signed | Path
 3001   | malware.exe  | elevated  | No     | C:\Users\User1\AppData\Local\Temp\malware.exe
 ```
 
-### JSON 报告
+### JSON Report
 
 ```json
 {
@@ -483,104 +499,106 @@ PID    | Process      | Privilege | Signed | Path
     "ExternalEndpoints": 45,
     "SuspiciousPorts": 3,
     "SuspiciousProcesses": 2,
-    "PrivEscalationCount": 1
-  }
+    "PrivEscalationCount": 1,
+    "WhitelistedCount": 0
+  },
+  "dns_lookups": 12
 }
 ```
 
-### CSV 文件
+### CSV Files
 
-**connections.csv** 列：
+**connections.csv** columns:
 ```
-ProcessID,Process,Executable,LocalAddr,LocalPort,RemoteAddr,RemotePort,Protocol,State,Direction
+ProcessID,Process,Executable,LocalAddr,LocalPort,DNSName,RemoteAddr,RemotePort,Protocol,State,Direction
 ```
 
-**risks.csv** 列：
+**risks.csv** columns:
 ```
 RiskLevel,ProcessID,Process,LocalAddr,LocalPort,RemoteAddr,RemotePort,State,Direction,Reasons
 ```
 
 ---
 
-## 权限要求
+## Privilege Requirements
 
-NetworkSentinel 需要以**标准用户权限**运行即可收集所有信息。部分功能（如代码签名验证、令牌提升检测）需要进程具有读取权限，但不会要求管理员权限。
+NetworkSentinel can collect all information with **standard user privileges**. Some features (code signing verification, token elevation detection) require the process to have read permissions, but do not require administrator rights.
 
-**推荐的运行方式：**
+**Recommended ways to run:**
 
 ```powershell
-# 标准用户运行
+# Standard user
 .\networksentinel.exe
 
-# 管理员运行（获取更完整的进程信息）
+# Administrator (more complete process info)
 Start-Process -Verb RunAs -FilePath ".\networksentinel.exe"
 ```
 
 ---
 
-## 故障排除
+## Troubleshooting
 
-### 扫描失败 — "wmic process failed"
+### Scan Fails — "wmic process failed"
 
-某些 Windows 版本已弃用 `wmic`。确保系统支持 wmic 命令：
+Some Windows versions have deprecated `wmic`. Ensure the system supports the wmic command:
 
 ```powershell
 wmic process get Name,ProcessId /format:list
 ```
 
-如果失败，说明系统可能已禁用 wmic。
+If it fails, the system may have disabled wmic.
 
-### DNS 采集返回空
+### DNS Capture Returns Empty
 
-`MSFT_DNSClientCache` WMI 类可能不存在于某些 Windows 版本。DNS 采集失败不会影响其他功能。
+The `MSFT_DNSClientCache` WMI class may not exist on some Windows versions. DNS capture failure does not affect other functionality.
 
-### 报告未生成
+### Report Not Generated
 
-检查输出目录是否存在：
+Check that the output directory exists:
 
 ```powershell
 .\networksentinel.exe -output C:\reports
-# 确保 C:\reports 目录存在
+# Ensure C:\reports directory exists
 ```
 
-### 配置加载失败
+### Config Load Fails
 
-配置文件必须是有效 JSON：
+The config file must be valid JSON:
 
 ```powershell
-# 验证 JSON 格式
+# Validate JSON format
 Get-Content config.json | ConvertFrom-Json
 ```
 
 ---
 
-## 性能
+## Performance
 
-- **单次扫描时间**：约 5-15 秒（取决于进程/连接数量）
-- **内存占用**：约 20-50 MB
-- **守护进程模式**：每次扫描独立执行，不会累积内存
-
----
-
-## 安全注意事项
-
-1. **本工具仅用于授权的安全测试和监控**
-2. **不要在生产环境无授权的情况下运行**
-3. **基线文件 `baseline.json` 包含网络连接数据，应妥善保护**
-4. **告警 Webhook URL 不应硬编码在配置中，建议使用环境变量**
-5. **守护进程模式会在后台持续运行，确保系统安全监控策略允许**
+- **One-shot scan time**: ~5-15 seconds (depends on process/connection count)
+- **Memory usage**: ~20-50 MB
+- **Daemon mode**: Each scan runs independently, no memory accumulation
 
 ---
 
-## 更新日志
+## Security Considerations
+
+1. **This tool is for authorized security testing and monitoring only**
+2. **Do not run in production without authorization**
+3. **The baseline file `baseline.json` contains network connection data — protect it**
+4. **Webhook URLs should not be hardcoded in config — use environment variables or a secrets manager**
+5. **Daemon mode runs continuously in the background — ensure system security monitoring policies allow it**
+
+---
+
+## Changelog
 
 ### v0.4.0
-- 新增 CLI 参数（-config, -output, -daemon, -h）
-- 新增守护进程模式
-- 新增 DNS 日志和可疑域名检测
-- 新增 Webhook 和标准错误告警
-- 新增特权升级链检测
-- 新增代码签名验证
-- 新增基线对比功能
-- 新增 Markdown / JSON / CSV 多格式报告
-- 全平台支持（Windows / Linux / macOS）
+- New CLI flags (-config, -output, -daemon, -h)
+- New daemon mode
+- New DNS logging and suspicious domain detection
+- New Webhook and stderr alerting
+- New privilege escalation chain detection
+- New code signing verification
+- New baseline comparison
+- New Markdown / JSON / CSV multi-format reports
+- Full platform support (Windows / Linux / macOS)
