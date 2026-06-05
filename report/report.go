@@ -240,7 +240,7 @@ func GenerateMarkdown(data Data, filename string) error {
 		}
 	}
 
-	// Privilege escalation findings
+// Privilege escalation findings
 	sb.WriteString("\n## Privilege Escalation Analysis\n\n")
 	escalationCount := 0
 	if len(data.Security) > 0 {
@@ -254,12 +254,10 @@ func GenerateMarkdown(data Data, filename string) error {
 		for _, pid := range pids {
 			info := data.Security[pid]
 			isElevated := info.PrivLevel == processinfo.Elevated || info.PrivLevel == processinfo.SYSTEM
-			isTempPath := strings.Contains(strings.ToLower(info.ExePath), "temp") ||
-				strings.Contains(strings.ToLower(info.ExePath), "tmp")
 			if isElevated && !info.IsSigned {
 				sb.WriteString(fmt.Sprintf("| %d | `%s` | `%s` | %v | `%s` |\n",
 					info.PID, info.Name, info.PrivLevel, info.IsSigned, info.ExePath))
-				if isTempPath {
+				if info.IsPrivEscalation() {
 					escalationCount++
 				}
 			}
@@ -354,10 +352,9 @@ func IsSuspiciousProcess(name string) bool {
 func Summarize(data Data) Findings {
 	privEscCount := 0
 	for _, sec := range data.Security {
-		if sec.PrivLevel == processinfo.Elevated || sec.PrivLevel == processinfo.SYSTEM {
-			if !sec.IsSigned {
-				privEscCount++
-			}
+		isElevated := sec.PrivLevel == processinfo.Elevated || sec.PrivLevel == processinfo.SYSTEM
+		if isElevated && !sec.IsSigned {
+			privEscCount++
 		}
 	}
 	return countFindings(data.Connections, data.Risks, privEscCount)

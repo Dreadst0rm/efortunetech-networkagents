@@ -87,9 +87,10 @@ func IsProcessUnsigned(info Info) bool {
 	return info.ExePath != "" && !info.IsSigned
 }
 
-func IsSuspiciousPath(exePath string) bool {
-	lower := strings.ToLower(exePath)
-	return strings.Contains(lower, "/private/tmp/") ||
-		strings.Contains(lower, "/tmp/") ||
-		strings.Contains(lower, "/var/folders/")
+func init() {
+	suspiciousPathPatterns = append(suspiciousPathPatterns,
+		"/private/tmp/",
+		"/tmp/",
+		"/var/folders/",
+	)
 }

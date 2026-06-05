@@ -94,9 +94,8 @@ func (c *C2IntelFeedsClient) Fetch30DayIOCs() ([]IOC, error) {
 	return iocs, nil
 }
 
-// fetchIPFeed downloads and parses the IP-based C2 feed.
-// Format: #ip,ioc (comment header, then IP lines with description).
-func (c *C2IntelFeedsClient) fetchIPFeed(url string) ([]IOC, error) {
+// fetchFeed downloads a feed from the given URL and parses it with the provided parser.
+func (c *C2IntelFeedsClient) fetchFeed(url string, parser func(io.Reader) ([]IOC, error)) ([]IOC, error) {
 	resp, err := c.HTTPClient.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("fetch %s: %w", url, err)
@@ -107,43 +106,37 @@ func (c *C2IntelFeedsClient) fetchIPFeed(url string) ([]IOC, error) {
 		return nil, fmt.Errorf("status %d from %s", resp.StatusCode, url)
 	}
 
-	return parseIPFeed(resp.Body)
+	return parser(resp.Body)
+}
+
+// fetchIPFeed downloads and parses the IP-based C2 feed.
+func (c *C2IntelFeedsClient) fetchIPFeed(url string) ([]IOC, error) {
+	return c.fetchFeed(url, parseIPFeed)
 }
 
 // fetchIPPortFeed downloads and parses the IP+port C2 feed.
-// Format: #ip,port,ioc (three-column CSV).
 func (c *C2IntelFeedsClient) fetchIPPortFeed(url string) ([]IOC, error) {
-	resp, err := c.HTTPClient.Get(url)
-	if err != nil {
-		return nil, fmt.Errorf("fetch %s: %w", url, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status %d from %s", resp.StatusCode, url)
-	}
-
-	return parseIPPortFeed(resp.Body)
+	return c.fetchFeed(url, parseIPPortFeed)
 }
 
 // fetchDomainFeed downloads and parses the domain C2 feed.
-// Format: #domain,ioc (comment header, then domain lines with description).
 func (c *C2IntelFeedsClient) fetchDomainFeed(url string) ([]IOC, error) {
-	resp, err := c.HTTPClient.Get(url)
-	if err != nil {
-		return nil, fmt.Errorf("fetch %s: %w", url, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status %d from %s", resp.StatusCode, url)
-	}
-
-	return parseDomainFeed(resp.Body)
+	return c.fetchFeed(url, parseDomainFeed)
 }
 
-// parseIPFeed parses a two-column CSV: ip,ioc_description.
-func parseIPFeed(r io.Reader) ([]IOC, error) {
+// csvFeedConfig holds the parameters for parsing a single C2IntelFeeds CSV feed.
+type csvFeedConfig struct {
+	indicatorType string
+	minRecords    int
+	headerSkip    string
+	confidence    int
+	tags          []string
+	source        string
+	portCol       int // -1 = no port column
+}
+
+// parseCSVFeed parses a C2IntelFeeds CSV feed using the provided config.
+func parseCSVFeed(r io.Reader, cfg csvFeedConfig) ([]IOC, error) {
 	cr := csv.NewReader(r)
 	cr.Comment = '#'
 	var iocs []IOC
@@ -156,117 +149,77 @@ func parseIPFeed(r io.Reader) ([]IOC, error) {
 		if err != nil {
 			continue
 		}
-		if len(record) < 2 {
+		if len(record) < cfg.minRecords {
 			continue
 		}
 
-		ip := strings.TrimSpace(record[0])
-		desc := strings.TrimSpace(record[1])
+		indicator := strings.TrimSpace(record[0])
+		desc := strings.TrimSpace(record[cfg.minRecords-1])
 
-		if ip == "" || ip == "ip" {
-			continue
-		}
-
-		iocs = append(iocs, IOC{
-			Indicator:     ip,
-			IndicatorType: "ipv4",
-			MalwareFamily: detectMalwareFamily(desc),
-			Country:       "",
-			Confidence:    70,
-			Tags:          []string{"c2intelfeeds", "cobaltstrike"},
-			Source:        "c2intelfeeds",
-			Status:        "active",
-		})
-	}
-
-	return iocs, nil
-}
-
-// parseIPPortFeed parses a three-column CSV: ip,port,ioc_description.
-func parseIPPortFeed(r io.Reader) ([]IOC, error) {
-	cr := csv.NewReader(r)
-	cr.Comment = '#'
-	var iocs []IOC
-
-	for {
-		record, err := cr.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			continue
-		}
-		if len(record) < 3 {
-			continue
-		}
-
-		ip := strings.TrimSpace(record[0])
-		portStr := strings.TrimSpace(record[1])
-		desc := strings.TrimSpace(record[2])
-
-		if ip == "" || ip == "ip" {
+		if indicator == "" || indicator == cfg.headerSkip {
 			continue
 		}
 
 		port := 0
-		if len(portStr) > 0 {
-			fmt.Sscanf(portStr, "%d", &port)
+		if cfg.portCol >= 0 && len(record) > cfg.portCol {
+			fmt.Sscanf(strings.TrimSpace(record[cfg.portCol]), "%d", &port)
 		}
 
-		iocs = append(iocs, IOC{
-			Indicator:     ip,
-			IndicatorType: "ipv4",
+		ioc := IOC{
+			Indicator:     indicator,
+			IndicatorType: cfg.indicatorType,
 			MalwareFamily: detectMalwareFamily(desc),
 			Country:       "",
-			Confidence:    75,
-			Tags:          []string{"c2intelfeeds", "cobaltstrike", fmt.Sprintf("port-%d", port)},
-			Source:        "c2intelfeeds_ipport",
+			Confidence:    cfg.confidence,
+			Tags:          cfg.tags,
+			Source:        cfg.source,
 			Status:        "active",
 			Port:          port,
-		})
+		}
+
+		iocs = append(iocs, ioc)
 	}
 
 	return iocs, nil
 }
 
+// parseIPFeed parses a two-column CSV: ip,ioc_description.
+func parseIPFeed(r io.Reader) ([]IOC, error) {
+	return parseCSVFeed(r, csvFeedConfig{
+		indicatorType: "ipv4",
+		minRecords:    2,
+		headerSkip:    "ip",
+		confidence:    70,
+		tags:          []string{"c2intelfeeds", "cobaltstrike"},
+		source:        "c2intelfeeds",
+		portCol:       -1,
+	})
+}
+
+// parseIPPortFeed parses a three-column CSV: ip,port,ioc_description.
+func parseIPPortFeed(r io.Reader) ([]IOC, error) {
+	return parseCSVFeed(r, csvFeedConfig{
+		indicatorType: "ipv4",
+		minRecords:    3,
+		headerSkip:    "ip",
+		confidence:    75,
+		tags:          []string{"c2intelfeeds", "cobaltstrike"},
+		source:        "c2intelfeeds_ipport",
+		portCol:       1,
+	})
+}
+
 // parseDomainFeed parses a two-column CSV: domain,ioc_description.
 func parseDomainFeed(r io.Reader) ([]IOC, error) {
-	cr := csv.NewReader(r)
-	cr.Comment = '#'
-	var iocs []IOC
-
-	for {
-		record, err := cr.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			continue
-		}
-		if len(record) < 2 {
-			continue
-		}
-
-		domain := strings.TrimSpace(record[0])
-		desc := strings.TrimSpace(record[1])
-
-		if domain == "" || domain == "domain" {
-			continue
-		}
-
-		iocs = append(iocs, IOC{
-			Indicator:     domain,
-			IndicatorType: "domain",
-			MalwareFamily: detectMalwareFamily(desc),
-			Country:       "",
-			Confidence:    70,
-			Tags:          []string{"c2intelfeeds", "cobaltstrike"},
-			Source:        "c2intelfeeds_domain",
-			Status:        "active",
-		})
-	}
-
-	return iocs, nil
+	return parseCSVFeed(r, csvFeedConfig{
+		indicatorType: "domain",
+		minRecords:    2,
+		headerSkip:    "domain",
+		confidence:    70,
+		tags:          []string{"c2intelfeeds", "cobaltstrike"},
+		source:        "c2intelfeeds_domain",
+		portCol:       -1,
+	})
 }
 
 // detectMalwareFamily extracts a malware family name from the IOC description.

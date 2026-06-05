@@ -115,7 +115,7 @@ main.go
   3. Anomalous TCP state (SYN_SENT, TIME_WAIT, CLOSE_WAIT, SYN_RECEIVED)
   4. High connection count to same IP (>= `MinIPConnections`)
   5. High outbound connection count per process (>= `MinProcessConnections`)
-  6. Privilege escalation chain (elevated + unsigned + temp path)
+  6. Privilege escalation chain (elevated + unsigned + temp path) — via `privEscReason()` helper
 
   Uses an on-stack `[6]string` array for reasons (zero heap allocation when no heuristics fire).
   Assigns risk level: Medium (1 reason), High (>= `HighThreshold`), Critical (>= `CriticalThreshold`).
@@ -183,13 +183,16 @@ main.go
 
 ### 7. `processinfo/processinfo.go` — Security Context Types (Shared)
 
-**Purpose:** Define types for per-PID security context.
+**Purpose:** Define types for per-PID security context and shared privilege escalation detection.
 
 **What it does:**
 - `Info` struct — carries per-PID security data: PID, name, username, exe path, privilege level, isSystem, integrity level, signer, isSigned, token elevation type
 - `AdminPrivilegeLevel` — `"elevated"`, `"standard"`, `"system"`
 - `TokenElevationType` — `Full`, `Limited`, `Default` (integer values 1, 2, 0)
 - `IntegrityLevel` — `System`, `High`, `Medium`, `Low` (integer values 3, 2, 1, 0)
+- `IsPrivEscalation()` method — checks if process has elevated privilege + unsigned binary + suspicious path (single source of truth for scanner + report)
+- `IsSuspiciousPath()` — shared function using `suspiciousPathPatterns` slice populated by each OS-specific `init()`
+- `suspiciousPathPatterns` — global slice populated by OS-specific `init()` functions with platform-specific suspicious path patterns
 
 **Called by:** `scanner.ScanAll()` which calls `processinfo.GetProcessInfo(pid)` for each unique PID. The returned `map[int]Info` is passed to `AssessConnectionRisk()` for privilege escalation detection.
 
@@ -207,7 +210,8 @@ main.go
   - Code signing status via `Get-AuthenticodeSignature`
   - Privilege level and integrity level (derived from token elevation)
 - Parses tab-separated output, returns `Info` struct
-- `IsProcessElevated()`, `IsProcessUnsigned()`, `IsSuspiciousPath()` — Helper checks for privilege escalation detection
+- `IsProcessElevated()`, `IsProcessUnsigned()` — Helper checks for privilege escalation detection
+- `init()` — Populates `suspiciousPathPatterns` with Windows-specific patterns (`appdata\local\temp`, `\tmp\`, `users\public\`)
 
 **Build tag:** `//go:build windows`
 
@@ -221,7 +225,8 @@ main.go
 - `GetProcessInfo(pid)` — Reads `/proc/[pid]/exe` for executable path, `/proc/[pid]/status` for UID/EUID
 - Resolves UID to username via `/etc/passwd`
 - Sets privilege level based on euid (0=root, 1-999=system user, 1000+=regular user)
-- `IsProcessElevated()`, `IsProcessUnsigned()`, `IsSuspiciousPath()` — Helper checks for privilege escalation detection
+- `IsProcessElevated()`, `IsProcessUnsigned()` — Helper checks for privilege escalation detection
+- `init()` — Populates `suspiciousPathPatterns` with Linux-specific patterns (`/tmp/`, `/var/tmp/`)
 
 **Build tag:** `//go:build linux`
 
@@ -236,7 +241,8 @@ main.go
 - Resolves UID to username via `/etc/passwd`
 - Resolves process name to executable path via `/usr/bin/which`
 - Sets privilege level based on UID (0=root, 1-999=system user, 1000+=regular user)
-- `IsProcessElevated()`, `IsProcessUnsigned()`, `IsSuspiciousPath()` — Helper checks for privilege escalation detection
+- `IsProcessElevated()`, `IsProcessUnsigned()` — Helper checks for privilege escalation detection
+- `init()` — Populates `suspiciousPathPatterns` with macOS-specific patterns (`/private/tmp/`, `/tmp/`, `/var/folders/`)
 
 **Build tag:** `//go:build darwin`
 
@@ -282,7 +288,9 @@ main.go
 - `C2IntelFeedsClient` — HTTP client for fetching CSV feeds from GitHub raw URLs
 - `FetchAllIOCs()` — Fetches all 4 feeds concurrently: `IPC2s.csv`, `IPPortC2s.csv`, `domainC2s.csv`, `IPC2s-30day.csv`
 - `Fetch30DayIOCs()` — Fetches only the 30-day active IP list
-- `parseIPFeed()`, `parseIPPortFeed()`, `parseDomainFeed()` — CSV parsers with `#` comment header support
+- `fetchFeed(url, parser)` — Generic HTTP fetch with parser injection; shared by all feed fetchers
+- `parseCSVFeed(r, cfg)` — Single generic CSV parser using `csvFeedConfig` struct (records, header skip, confidence, tags, source, port column)
+- `parseIPFeed()`, `parseIPPortFeed()`, `parseDomainFeed()` — Thin wrappers delegating to `parseCSVFeed()` with platform-specific configs
 - `detectMalwareFamily(desc)` — Maps CSV descriptions to malware family names (CobaltStrike, C2Fronting, etc.)
 - Constants: `C2IntelFeedsURL`, `C2IntelFeeds30DayURL`, `C2IntelFeedsIPPortURL`, `C2IntelFeedsDomainURL`
 
@@ -393,7 +401,7 @@ main.go
   - Risk Analysis Summary (critical/high/medium/low counts)
   - Whitelisted Connections (with admin comments)
   - Top Processes by Network Activity (top 20 by connection count)
-  - Privilege Escalation Analysis (elevated + unsigned processes)
+  - Privilege Escalation Analysis (elevated + unsigned + suspicious path via `Info.IsPrivEscalation()`)
   - Baseline Comparison (new/gone/unchanged)
   - Key Findings (summary table)
 - `GenerateJSON(data, filename)` — Writes structured JSON with all scan data, findings summary, DNS lookup count
@@ -402,7 +410,7 @@ main.go
 - `IsSuspicious(c)` — Returns true if connection target is external (not local/private)
 - `IsLocal(addr)` — Delegates to `scanner.IsPrivateIP()`
 - `IsSuspiciousProcess(name)` — Checks against `scanner.SuspiciousProcessNamesList()`
-- `Summarize(data)` -> `Findings` — Counts: total outbound, external endpoints, suspicious ports, suspicious processes, risk level counts, privilege escalation count, whitelisted count
+- `Summarize(data)` -> `Findings` — Counts: total outbound, external endpoints, suspicious ports, suspicious processes, risk level counts, privilege escalation count (elevated + unsigned via `Info.IsPrivEscalation()`), whitelisted count
 - `countFindings()` — Internal helper for `Summarize()`
 - `isSuspiciousPort(port)` — Delegates to `scanner.IsSuspiciousPort()`
 - `sanitizeMarkdown(s)` — Escapes `|` and `` ` `` for safe Markdown table rendering
@@ -608,3 +616,9 @@ c2update (standalone binary)
 7. **Cached feed clients** — `FeedCacheManager` provides TTL-based caching for live threat intel feeds. Returns stale cache on fetch failure, preventing scan failure from network issues.
 
 8. **Standalone updater** — `c2update/` is a separate Go module with its own `go.mod`, built independently from `networksentinel`. Consumed via `-feed` flag. Enables scheduled updates without modifying the main binary.
+
+9. **Generic CSV parser with config struct** — `parseCSVFeed()` in `c2intelfeeds.go` uses a `csvFeedConfig` struct to parameterize column count, header skip, confidence, tags, source, and port column. Three feed types (IP, IP+port, domain) each delegate to the same parser with different configs, eliminating ~90 lines of duplicated parsing logic.
+
+10. **Platform-specific pattern injection via init()** — `suspiciousPathPatterns` is a shared global slice populated by each OS-specific `init()` function. `IsSuspiciousPath()` in the shared `processinfo.go` iterates over the slice. This provides platform-aware detection without code duplication while keeping a single shared implementation.
+
+11. **Unified privilege escalation detection** — `Info.IsPrivEscalation()` method in `processinfo.go` is the single source of truth for scanner and report. Eliminates the previous duplication where the report used crude `strings.Contains(..., "temp")` substring checks that produced false positives (e.g., `C:\temporal\program.exe`).

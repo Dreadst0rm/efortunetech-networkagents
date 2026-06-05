@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"fmt"
+	"net"
 	"strings"
 
 	"networksentinel/config"
@@ -135,26 +136,8 @@ func determineDirection(c *Connection) string {
 	return "outbound"
 }
 
-func IsSuspiciousState(state string) bool {
-	suspicious := map[string]bool{
-		"SYN_SENT":     true,
-		"SYN_RECEIVED": true,
-		"TIME_WAIT":    true,
-		"CLOSE_WAIT":   true,
-	}
-	return suspicious[strings.ToUpper(state)]
-}
-
 func IsExternalIP(addr string) bool {
 	return !IsPrivateIP(addr)
-}
-
-func IsPrivatePrefix(s, prefix string) bool {
-	if !strings.HasPrefix(s, prefix) {
-		return false
-	}
-	rest := strings.TrimPrefix(s, prefix)
-	return len(rest) > 0 && rest[0] == '.'
 }
 
 // IsPrivateIP returns true if addr is a loopback, private, or link-local address.
@@ -171,15 +154,11 @@ func IsPrivateIP(addr string) bool {
 			clean = clean[1:idx]
 		}
 	}
-	if clean == "::1" || clean == "::" ||
-		strings.HasPrefix(clean, "fe80::") || strings.HasPrefix(clean, "fd") ||
-		strings.HasPrefix(clean, "ff") {
-		return true
+	ip := net.ParseIP(clean)
+	if ip == nil {
+		return false
 	}
-	return strings.HasPrefix(clean, "127.") ||
-		strings.HasPrefix(clean, "192.168.") ||
-		strings.HasPrefix(clean, "10.") ||
-		IsPrivatePrefix(clean, "172")
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsMulticast()
 }
 
 // SuspiciousProcessNames lists executable names that warrant extra scrutiny when
@@ -290,16 +269,8 @@ func AssessConnectionRisk(conns []Connection, secInfo map[int]processinfo.Info, 
 
 		// --- 6. Privilege escalation chain detection ---
 		if info, ok := secInfo[c.ProcessID]; ok {
-			isElevated := info.PrivLevel == processinfo.Elevated || info.PrivLevel == processinfo.SYSTEM
-			isTempPath := processinfo.IsSuspiciousPath(info.ExePath)
-			if isElevated && !info.IsSigned && isTempPath {
-				reasons[count] = "PRIVILEGE ESCALATION: elevated + unsigned + temp path"
-				count++
-			} else if isElevated && !info.IsSigned {
-				reasons[count] = "elevated + unsigned binary: " + info.ExePath
-				count++
-			} else if isElevated && isTempPath {
-				reasons[count] = "elevated process from temp path: " + info.ExePath
+			if reason := privEscReason(info); reason != "" {
+				reasons[count] = reason
 				count++
 			}
 		}
@@ -350,4 +321,25 @@ func itoa(n int) string {
 		n /= 10
 	}
 	return string(buf[i:])
+}
+
+// privEscReason returns a non-empty string describing a privilege escalation
+// risk for the given process info, or an empty string if no escalation is detected.
+// It checks the highest-severity condition first so only one reason is returned.
+func privEscReason(info processinfo.Info) string {
+	isElevated := info.PrivLevel == processinfo.Elevated || info.PrivLevel == processinfo.SYSTEM
+	if !isElevated {
+		return ""
+	}
+	isTempPath := processinfo.IsSuspiciousPath(info.ExePath)
+	if !info.IsSigned && isTempPath {
+		return "PRIVILEGE ESCALATION: elevated + unsigned + temp path"
+	}
+	if !info.IsSigned {
+		return "elevated + unsigned binary: " + info.ExePath
+	}
+	if isTempPath {
+		return "elevated process from temp path: " + info.ExePath
+	}
+	return ""
 }

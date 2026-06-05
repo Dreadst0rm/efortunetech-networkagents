@@ -2,6 +2,8 @@
 // Platform-specific implementations are in _windows.go, _linux.go, _darwin.go.
 package processinfo
 
+import "strings"
+
 // AdminPrivilegeLevel represents the admin privilege level of a process.
 type AdminPrivilegeLevel string
 
@@ -68,4 +70,26 @@ func (i IntegrityLevel) String() string {
 	default:
 		return "unknown"
 	}
+}
+
+// IsPrivEscalation reports whether this process has a privilege escalation risk:
+// elevated privilege combined with an unsigned binary and a suspicious execution path.
+func (i Info) IsPrivEscalation() bool {
+	isElevated := i.PrivLevel == Elevated || i.PrivLevel == SYSTEM
+	return isElevated && !i.IsSigned && IsSuspiciousPath(i.ExePath)
+}
+
+// suspiciousPathPatterns is populated by each OS-specific init() function.
+var suspiciousPathPatterns []string
+
+// IsSuspiciousPath reports whether the given executable path matches any
+// known suspicious directory patterns. Patterns are populated per-OS.
+func IsSuspiciousPath(exePath string) bool {
+	lower := strings.ToLower(exePath)
+	for _, p := range suspiciousPathPatterns {
+		if strings.Contains(lower, p) {
+			return true
+		}
+	}
+	return false
 }

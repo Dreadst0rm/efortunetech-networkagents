@@ -435,29 +435,6 @@ func TestAssessConnectionRisk_MultipleConnectionsDifferentProcesses(t *testing.T
 	}
 }
 
-func TestIsSuspiciousState(t *testing.T) {
-	tests := []struct {
-		state    string
-		expected bool
-	}{
-		{"SYN_SENT", true},
-		{"SYN_RECEIVED", true},
-		{"TIME_WAIT", true},
-		{"CLOSE_WAIT", true},
-		{"ESTABLISHED", false},
-		{"LISTEN", false},
-		{"CLOSED", false},
-		{"syn_sent", true},
-		{"Established", false},
-	}
-	for _, tt := range tests {
-		result := IsSuspiciousState(tt.state)
-		if result != tt.expected {
-			t.Errorf("IsSuspiciousState(%q) = %v, want %v", tt.state, result, tt.expected)
-		}
-	}
-}
-
 func TestIsTransitionState(t *testing.T) {
 	tests := []struct {
 		state    string
@@ -514,7 +491,7 @@ func TestIsExternalIP(t *testing.T) {
 		{"192.168.1.1", false},
 		{"10.0.0.1", false},
 		{"172.16.0.1", false},
-		{"172.32.0.1", false},
+		{"172.32.0.1", true},
 		{"0.0.0.0", false},
 		{"*", false},
 		{"", false},
@@ -525,27 +502,6 @@ func TestIsExternalIP(t *testing.T) {
 		result := IsExternalIP(tt.addr)
 		if result != tt.expected {
 			t.Errorf("IsExternalIP(%q) = %v, want %v", tt.addr, result, tt.expected)
-		}
-	}
-}
-
-func TestIsPrivatePrefix(t *testing.T) {
-	tests := []struct {
-		s        string
-		prefix   string
-		expected bool
-	}{
-		{"172.16.0.1", "172", true},
-		{"172.32.0.1", "172", true},
-		{"1720.0.1", "172", false},
-		{"192.168.1.1", "172", false},
-		{"fd00::1", "fd", false},
-		{"fe80::1", "fd", false},
-	}
-	for _, tt := range tests {
-		result := IsPrivatePrefix(tt.s, tt.prefix)
-		if result != tt.expected {
-			t.Errorf("IsPrivatePrefix(%q, %q) = %v, want %v", tt.s, tt.prefix, result, tt.expected)
 		}
 	}
 }
