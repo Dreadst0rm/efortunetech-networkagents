@@ -96,9 +96,8 @@ type Connection struct {
 }
 
 type ProcessEntry struct {
-	PID     int
-	Name    string
-	enabled bool
+	PID  int
+	Name string
 }
 
 func ScanAll(cfg *config.Config) ([]Connection, []ProcessEntry, map[int]processinfo.Info, error) {

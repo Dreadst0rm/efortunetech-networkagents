@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -130,7 +131,7 @@ func GenerateMarkdown(data Data, filename string) error {
 		for _, addr := range addrs {
 			var ports []string
 			for _, p := range extMap[addr] {
-				ports = append(ports, fmt.Sprintf("%d", p))
+				ports = append(ports, strconv.Itoa(p))
 			}
 			sort.Strings(ports)
 			sb.WriteString(fmt.Sprintf("| `%s` | `%s` | `%s` |\n", addr, "", strings.Join(ports, ", ")))

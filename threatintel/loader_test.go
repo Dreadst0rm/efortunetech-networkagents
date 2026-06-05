@@ -10,7 +10,9 @@ import (
 func TestLoadFeed_EmptyArray(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "empty.json")
-	os.WriteFile(path, []byte("[]"), 0644)
+	if err := os.WriteFile(path, []byte("[]"), 0644); err != nil {
+		t.Fatalf("write test file: %v", err)
+	}
 	db, err := LoadFeed(path)
 	if err != nil {
 		t.Fatalf("LoadFeed should succeed with empty array: %v", err)
@@ -23,7 +25,9 @@ func TestLoadFeed_EmptyArray(t *testing.T) {
 func TestLoadFeed_InvalidJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "invalid.json")
-	os.WriteFile(path, []byte("not valid json"), 0644)
+	if err := os.WriteFile(path, []byte("not valid json"), 0644); err != nil {
+		t.Fatalf("write test file: %v", err)
+	}
 	_, err := LoadFeed(path)
 	if err == nil {
 		t.Error("expected error for invalid JSON")
@@ -38,7 +42,9 @@ func TestLoadFeed_ValidFile(t *testing.T) {
 		{Indicator: "evil.com", IndicatorType: "domain", MalwareFamily: "Phishing", Country: "CN", Confidence: 90},
 	}
 	data, _ := json.Marshal(iocs)
-	os.WriteFile(path, data, 0644)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("write test file: %v", err)
+	}
 
 	db, err := LoadFeed(path)
 	if err != nil {
@@ -56,7 +62,9 @@ func TestGetFeedIOCs(t *testing.T) {
 		{Indicator: "185.141.22.206", IndicatorType: "ipv4", MalwareFamily: "CobaltStrike"},
 	}
 	data, _ := json.Marshal(iocs)
-	os.WriteFile(path, data, 0644)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("write test file: %v", err)
+	}
 
 	result, err := GetFeedIOCs(path)
 	if err != nil {
@@ -79,7 +87,9 @@ func TestFeedCount(t *testing.T) {
 		{Indicator: "8.8.8.8", IndicatorType: "ipv4"},
 	}
 	data, _ := json.Marshal(iocs)
-	os.WriteFile(path, data, 0644)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("write test file: %v", err)
+	}
 
 	count, err := FeedCount(path)
 	if err != nil {
@@ -117,7 +127,9 @@ func TestLoadFeed_MergeWithDefaults(t *testing.T) {
 		{Indicator: "99.99.99.99", IndicatorType: "ipv4", MalwareFamily: "TestC2"},
 	}
 	data, _ := json.Marshal(iocs)
-	os.WriteFile(path, data, 0644)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("write test file: %v", err)
+	}
 
 	// Merge with built-in
 	merged := NewThreatIntelDB()

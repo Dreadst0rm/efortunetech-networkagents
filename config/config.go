@@ -137,7 +137,7 @@ func (c *Config) IsExcludedPID(pid int) bool {
 }
 
 // IsWhitelistedIP returns true if the given IP is in the whitelist.
-func (c *Config) IsWhitelistedIP(ip string) bool {
+func (c *Config) IsWhitelistedIP(ip string) bool { //nolint:SA6005 // IP addresses don't need case-insensitive comparison
 	for _, w := range c.Whitelist {
 		if w.IP == ip {
 			return true
@@ -147,7 +147,7 @@ func (c *Config) IsWhitelistedIP(ip string) bool {
 }
 
 // GetWhitelistComment returns the comment for a whitelisted IP, or empty string.
-func (c *Config) GetWhitelistComment(ip string) string {
+func (c *Config) GetWhitelistComment(ip string) string { //nolint:SA6005 // IP addresses don't need case-insensitive comparison
 	for _, w := range c.Whitelist {
 		if w.IP == ip {
 			return w.Comment

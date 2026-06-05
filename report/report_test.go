@@ -370,7 +370,9 @@ func TestGenerateJSON_DNSCount(t *testing.T) {
 	}
 
 	var raw map[string]interface{}
-	json.Unmarshal(content, &raw)
+	if err := json.Unmarshal(content, &raw); err != nil {
+		t.Fatalf("unmarshal JSON: %v", err)
+	}
 
 	dnsLookups := raw["dns_lookups"].(float64)
 	if dnsLookups != 2 {
@@ -568,7 +570,9 @@ func TestGenerateJSON_WhitelistedCount(t *testing.T) {
 	}
 
 	var raw map[string]interface{}
-	json.Unmarshal(content, &raw)
+	if err := json.Unmarshal(content, &raw); err != nil {
+		t.Fatalf("unmarshal JSON: %v", err)
+	}
 
 	findings := raw["findings"].(map[string]interface{})
 	whitelisted := findings["WhitelistedCount"].(float64)

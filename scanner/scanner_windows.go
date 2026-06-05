@@ -21,18 +21,20 @@ func enumerateProcesses() ([]ProcessEntry, error) {
 	// Strategy: emit as soon as both Name and ProcessId are present
 	lines := strings.Split(string(out), "\n")
 	var procs []ProcessEntry
-	current := ProcessEntry{enabled: false}
+	var hasName bool
+	var current ProcessEntry
 	for _, line := range lines {
 		if strings.HasPrefix(line, "Name=") {
 			current.Name = strings.TrimSpace(strings.TrimPrefix(line, "Name="))
-			current.enabled = true
+			hasName = true
 		} else if strings.HasPrefix(line, "ProcessId=") {
 			var pid int
 			fmt.Sscanf(strings.TrimSpace(strings.TrimPrefix(line, "ProcessId=")), "%d", &pid)
 			current.PID = pid
-			if current.enabled && current.PID >= 0 {
+			if hasName && current.PID >= 0 {
 				procs = append(procs, current)
-				current = ProcessEntry{enabled: false}
+				current = ProcessEntry{}
+				hasName = false
 			}
 		}
 	}
