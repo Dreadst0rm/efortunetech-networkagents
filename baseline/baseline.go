@@ -28,7 +28,7 @@ type Snapshot struct {
 
 // Key returns a unique key for the connection.
 func (e Entry) Key() string {
-	return fmt.Sprintf("%s:%d", e.RemoteAddr, e.RemotePort)
+	return fmt.Sprintf("%d:%s:%d", e.ProcessID, e.RemoteAddr, e.RemotePort)
 }
 
 // Save writes the current connections to the baseline file.

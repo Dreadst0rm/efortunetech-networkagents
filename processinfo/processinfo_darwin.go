@@ -4,11 +4,11 @@ package processinfo
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"os"
 )
 
 func GetProcessInfo(pid int) (Info, error) {

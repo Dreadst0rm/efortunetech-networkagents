@@ -29,9 +29,9 @@ type Info struct {
 type TokenElevationType int
 
 const (
-	Full          TokenElevationType = iota // complete elevation
-	Limited                                 // admin group but limited token
-	Default                                 // not admin, UAC disabled or standard user
+	Full    TokenElevationType = iota // complete elevation
+	Limited                           // admin group but limited token
+	Default                           // not admin, UAC disabled or standard user
 )
 
 func (t TokenElevationType) String() string {
@@ -49,10 +49,10 @@ func (t TokenElevationType) String() string {
 type IntegrityLevel int
 
 const (
-	System   IntegrityLevel = iota + 3 // System (highest)
-	High                               // High
-	Medium                             // Medium
-	Low                                // Low
+	System IntegrityLevel = iota + 3 // System (highest)
+	High                             // High
+	Medium                           // Medium
+	Low                              // Low
 )
 
 func (i IntegrityLevel) String() string {

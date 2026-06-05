@@ -95,13 +95,13 @@ type Connection struct {
 	DNSName    string // resolved domain name from reverse DNS lookup
 }
 
-type ProcessInfo struct {
+type ProcessEntry struct {
 	PID     int
 	Name    string
 	enabled bool
 }
 
-func ScanAll(cfg *config.Config) ([]Connection, []ProcessInfo, map[int]processinfo.Info, error) {
+func ScanAll(cfg *config.Config) ([]Connection, []ProcessEntry, map[int]processinfo.Info, error) {
 	procs, err := enumerateProcesses()
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to enumerate processes: %w", err)
@@ -151,25 +151,10 @@ func ScanAll(cfg *config.Config) ([]Connection, []ProcessInfo, map[int]processin
 }
 
 func determineDirection(c *Connection) string {
-	if c.RemoteAddr == "*" || c.RemoteAddr == "0.0.0.0" {
+	if c.RemoteAddr == "*" || c.RemoteAddr == "0.0.0.0" || c.RemoteAddr == "" {
 		return "inbound"
 	}
-	if c.RemoteAddr == "" {
-		return "inbound"
-	}
-	// IPv6 loopback and link-local
-	if strings.HasPrefix(c.RemoteAddr, "[::") ||
-		strings.HasPrefix(c.RemoteAddr, "::1") ||
-		strings.HasPrefix(c.RemoteAddr, "fe80::") ||
-		strings.HasPrefix(c.RemoteAddr, "fd") ||
-		strings.HasPrefix(c.RemoteAddr, "ff") {
-		return "internal"
-	}
-	// IPv4 private ranges
-	if strings.HasPrefix(c.RemoteAddr, "127.") ||
-		strings.HasPrefix(c.RemoteAddr, "192.168.") ||
-		strings.HasPrefix(c.RemoteAddr, "10.") ||
-		strings.HasPrefix(c.RemoteAddr, "172.") {
+	if IsPrivateIP(c.RemoteAddr) {
 		return "internal"
 	}
 	return "outbound"
@@ -186,31 +171,7 @@ func IsSuspiciousState(state string) bool {
 }
 
 func IsExternalIP(addr string) bool {
-	if addr == "" || addr == "0.0.0.0" || addr == "*" {
-		return false
-	}
-
-	clean := addr
-	if strings.HasPrefix(clean, "[") {
-		idx := strings.Index(clean, "]")
-		if idx > 1 {
-			clean = clean[1 : idx]
-		}
-	}
-
-	if strings.HasPrefix(clean, "[::") || strings.HasPrefix(clean, "[fe80::") ||
-		strings.HasPrefix(clean, "[fd") || strings.HasPrefix(clean, "[ff") ||
-		strings.HasPrefix(clean, "::1") || strings.HasPrefix(clean, "fe80::") ||
-		IsPrivatePrefix(clean, "fd") || strings.HasPrefix(clean, "ff") {
-		return false
-	}
-	if strings.HasPrefix(clean, "127.") ||
-		strings.HasPrefix(clean, "192.168.") ||
-		strings.HasPrefix(clean, "10.") ||
-		IsPrivatePrefix(clean, "172") {
-		return false
-	}
-	return true
+	return !IsPrivateIP(addr)
 }
 
 func IsPrivatePrefix(s, prefix string) bool {
@@ -219,6 +180,31 @@ func IsPrivatePrefix(s, prefix string) bool {
 	}
 	rest := strings.TrimPrefix(s, prefix)
 	return len(rest) > 0 && rest[0] == '.'
+}
+
+// IsPrivateIP returns true if addr is a loopback, private, or link-local address.
+// It handles IPv4 ranges (127.x, 192.168.x, 10.x, 172.16-31.x) and IPv6
+// (loopback, link-local, unique-local, multicast). Brackets are stripped for IPv6.
+func IsPrivateIP(addr string) bool {
+	if addr == "" || addr == "0.0.0.0" || addr == "*" {
+		return true
+	}
+	clean := addr
+	if strings.HasPrefix(clean, "[") {
+		idx := strings.Index(clean, "]")
+		if idx > 1 {
+			clean = clean[1:idx]
+		}
+	}
+	if clean == "::1" || clean == "::" ||
+		strings.HasPrefix(clean, "fe80::") || strings.HasPrefix(clean, "fd") ||
+		strings.HasPrefix(clean, "ff") {
+		return true
+	}
+	return strings.HasPrefix(clean, "127.") ||
+		strings.HasPrefix(clean, "192.168.") ||
+		strings.HasPrefix(clean, "10.") ||
+		IsPrivatePrefix(clean, "172")
 }
 
 // SuspiciousProcessNames lists executable names that warrant extra scrutiny when

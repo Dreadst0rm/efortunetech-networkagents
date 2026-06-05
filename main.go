@@ -22,6 +22,7 @@ import (
 	"networksentinel/threatintel"
 	"networksentinel/version"
 )
+
 const baselineFile = "baseline.json"
 
 var (
@@ -235,7 +236,7 @@ func runScan(cfg *config.Config, outputDir string) {
 		fmt.Printf("  Baseline age: %s\n", diff.BaselineAge.Round(time.Second))
 		fmt.Println()
 	} else {
-		fmt.Println("[3/4] No previous baseline found (will create one after scan)")
+		fmt.Println("[3/5] No previous baseline found (will create one after scan)")
 		fmt.Println()
 	}
 

@@ -100,6 +100,9 @@ func TestGenerateJSON(t *testing.T) {
 		Connections: []scanner.Connection{
 			{ProcessID: 1, Process: "chrome.exe", Direction: "outbound", RemoteAddr: "8.8.8.8", RemotePort: 443, DNSName: "dns.google"},
 		},
+		Processes: []scanner.ProcessEntry{
+			{PID: 1, Name: "chrome.exe"},
+		},
 		Risks: []scanner.ConnectionRisk{
 			{Connection: scanner.Connection{ProcessID: 1, Process: "chrome.exe", RemoteAddr: "8.8.8.8", RemotePort: 443}, RiskLevel: scanner.RiskLow},
 		},
@@ -415,10 +418,10 @@ func TestGenerateMarkdown_WhitelistedSection(t *testing.T) {
 		Connections: []scanner.Connection{},
 		Risks: []scanner.ConnectionRisk{
 			{
-				Connection: scanner.Connection{ProcessID: 1, Process: "chrome.exe", RemoteAddr: "8.8.8.8", RemotePort: 443, DNSName: "dns.google"},
-				RiskLevel:  scanner.RiskMedium,
+				Connection:    scanner.Connection{ProcessID: 1, Process: "chrome.exe", RemoteAddr: "8.8.8.8", RemotePort: 443, DNSName: "dns.google"},
+				RiskLevel:     scanner.RiskMedium,
 				IsWhitelisted: true,
-				RiskReasons: []string{"suspicious port 443"},
+				RiskReasons:   []string{"suspicious port 443"},
 			},
 		},
 		Whitelist: []WhitelistedIP{
@@ -701,7 +704,7 @@ func TestGenerateMarkdown_WhitelistedWithSpecialChars(t *testing.T) {
 	filename := filepath.Join(tmpDir, "special.md")
 
 	data := Data{
-		System: &systeminfo.SystemDetails{Hostname: "test", OSPlatform: "linux"},
+		System:      &systeminfo.SystemDetails{Hostname: "test", OSPlatform: "linux"},
 		Connections: []scanner.Connection{},
 		Risks: []scanner.ConnectionRisk{
 			{

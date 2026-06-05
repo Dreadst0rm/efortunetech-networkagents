@@ -64,10 +64,10 @@ func TestAssessConnectionRisk_MultipleHeuristics(t *testing.T) {
 func TestAssessConnectionRisk_PlaceholderRiskLevel(t *testing.T) {
 	cfg := config.Config{
 		Thresholds: config.Thresholds{
-			MinIPConnections:        1,
-			MinProcessConnections:   1,
-			CriticalThreshold:       1,
-			HighThreshold:           1,
+			MinIPConnections:      1,
+			MinProcessConnections: 1,
+			CriticalThreshold:     1,
+			HighThreshold:         1,
 		},
 		Excluded: config.Excluded{
 			PIDs:      []int{},
@@ -114,10 +114,10 @@ func TestAssessConnectionRisk_NoOutbound(t *testing.T) {
 func TestAssessConnectionRisk_IPConnectionCount(t *testing.T) {
 	cfg := config.Config{
 		Thresholds: config.Thresholds{
-			MinIPConnections:        3,
-			MinProcessConnections:   5,
-			CriticalThreshold:       3,
-			HighThreshold:           2,
+			MinIPConnections:      3,
+			MinProcessConnections: 5,
+			CriticalThreshold:     3,
+			HighThreshold:         2,
 		},
 		Excluded: config.Excluded{
 			PIDs:      []int{},
@@ -312,10 +312,10 @@ func TestAssessConnectionRisk_ElevatedSignedTempPath(t *testing.T) {
 func TestAssessConnectionRisk_NoSecurityInfo(t *testing.T) {
 	cfg := config.Config{
 		Thresholds: config.Thresholds{
-			MinIPConnections:        5,
-			MinProcessConnections:   5,
-			CriticalThreshold:       3,
-			HighThreshold:           2,
+			MinIPConnections:      5,
+			MinProcessConnections: 5,
+			CriticalThreshold:     3,
+			HighThreshold:         2,
 		},
 		Excluded: config.Excluded{
 			PIDs:      []int{},
@@ -391,10 +391,10 @@ func TestAssessConnectionRisk_SystemProcessTempPath(t *testing.T) {
 func TestAssessConnectionRisk_MultipleConnectionsDifferentProcesses(t *testing.T) {
 	cfg := config.Config{
 		Thresholds: config.Thresholds{
-			MinIPConnections:        2,
-			MinProcessConnections:   2,
-			CriticalThreshold:       3,
-			HighThreshold:           2,
+			MinIPConnections:      2,
+			MinProcessConnections: 2,
+			CriticalThreshold:     3,
+			HighThreshold:         2,
 		},
 		Excluded: config.Excluded{
 			PIDs:      []int{},
@@ -642,10 +642,10 @@ func TestDetermineDirection(t *testing.T) {
 func TestAssessConnectionRisk_CriticalRisk(t *testing.T) {
 	cfg := config.Config{
 		Thresholds: config.Thresholds{
-			MinIPConnections:        1,
-			MinProcessConnections:   1,
-			CriticalThreshold:       3,
-			HighThreshold:           2,
+			MinIPConnections:      1,
+			MinProcessConnections: 1,
+			CriticalThreshold:     3,
+			HighThreshold:         2,
 		},
 		Excluded: config.Excluded{
 			PIDs:      []int{},
@@ -691,10 +691,10 @@ func TestAssessConnectionRisk_CriticalRisk(t *testing.T) {
 func TestAssessConnectionRisk_HighRisk(t *testing.T) {
 	cfg := config.Config{
 		Thresholds: config.Thresholds{
-			MinIPConnections:        1,
-			MinProcessConnections:   1,
-			CriticalThreshold:       4,
-			HighThreshold:           2,
+			MinIPConnections:      1,
+			MinProcessConnections: 1,
+			CriticalThreshold:     4,
+			HighThreshold:         2,
 		},
 		Excluded: config.Excluded{
 			PIDs:      []int{},
@@ -742,10 +742,10 @@ func TestAssessConnectionRisk_HighRisk(t *testing.T) {
 func TestAssessConnectionRisk_ProcessConnectionCount(t *testing.T) {
 	cfg := config.Config{
 		Thresholds: config.Thresholds{
-			MinIPConnections:        5,
-			MinProcessConnections:   3,
-			CriticalThreshold:       3,
-			HighThreshold:           2,
+			MinIPConnections:      5,
+			MinProcessConnections: 3,
+			CriticalThreshold:     3,
+			HighThreshold:         2,
 		},
 		Excluded: config.Excluded{
 			PIDs:      []int{},

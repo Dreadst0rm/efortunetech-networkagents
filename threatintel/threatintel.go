@@ -7,17 +7,17 @@ import (
 
 // IOC represents a single indicator of compromise from a threat intelligence feed.
 type IOC struct {
-	Indicator     string    // IP address or domain name
-	IndicatorType string    // "ipv4", "domain", "url"
-	MalwareFamily string    // e.g., "CobaltStrike", "Metasploit", "LummaStealer"
+	Indicator     string // IP address or domain name
+	IndicatorType string // "ipv4", "domain", "url"
+	MalwareFamily string // e.g., "CobaltStrike", "Metasploit", "LummaStealer"
 	FirstSeen     time.Time
 	LastSeen      time.Time
-	Country       string    // ISO 3166-1 alpha-2
-	Confidence    int       // 0-100
-	Tags          []string  // e.g., ["c2", "stealer", "rat"]
-	Source        string    // e.g., "threatfox", "spamdynamics"
-	Status        string    // "active", "inactive"
-	Port          int       // C2 port (if applicable)
+	Country       string   // ISO 3166-1 alpha-2
+	Confidence    int      // 0-100
+	Tags          []string // e.g., ["c2", "stealer", "rat"]
+	Source        string   // e.g., "threatfox", "spamdynamics"
+	Status        string   // "active", "inactive"
+	Port          int      // C2 port (if applicable)
 }
 
 // MatchResult holds the result of an IOC lookup.

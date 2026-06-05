@@ -21,7 +21,7 @@ type Query struct {
 
 // QueryLog is a thread-safe DNS query logger.
 type QueryLog struct {
-	mu     sync.Mutex
+	mu      sync.Mutex
 	queries []Query
 }
 
@@ -55,15 +55,15 @@ func (l *QueryLog) Clear() {
 
 // SuspiciousDomainResult holds the result of domain suspicion analysis.
 type SuspiciousDomainResult struct {
-	Domain     string
+	Domain       string
 	IsSuspicious bool
-	Reason     string
-	Confidence float64
+	Reason       string
+	Confidence   float64
 }
 
 // suspiciousTLDs are TLDs commonly associated with malicious activity.
 var suspiciousTLDs = map[string]float64{
-	".xyz":  0.6, ".top": 0.5, ".club": 0.5, ".online": 0.5,
+	".xyz": 0.6, ".top": 0.5, ".club": 0.5, ".online": 0.5,
 	".store": 0.5, ".site": 0.5, ".work": 0.4, ".trade": 0.5,
 	".info": 0.4, ".biz": 0.4, ".ru": 0.6, ".cn": 0.5,
 	".tk": 0.7, ".ml": 0.7, ".ga": 0.7, ".cf": 0.7,
@@ -141,8 +141,8 @@ func CheckDomain(domain string) SuspiciousDomainResult {
 		return SuspiciousDomainResult{
 			Domain:       domain,
 			IsSuspicious: score >= 0.6,
-			Reason:     strings.Join(reasons, "; "),
-			Confidence: score,
+			Reason:       strings.Join(reasons, "; "),
+			Confidence:   score,
 		}
 	}
 
@@ -157,12 +157,12 @@ func isVowel(r rune) bool {
 
 // CaptureResult holds the output of a DNS capture operation.
 type CaptureResult struct {
-	Timestamp time.Time `json:"timestamp"`
-	Hostname  string    `json:"hostname"`
-	QueryLog  *QueryLog `json:"query_log"`
-	Queries   []Query   `json:"queries"`
-	Suspicious []SuspiciousDomainResult `json:"suspicious_domains,omitempty"`
-	CaptureMethod string `json:"capture_method"`
+	Timestamp     time.Time                `json:"timestamp"`
+	Hostname      string                   `json:"hostname"`
+	QueryLog      *QueryLog                `json:"query_log"`
+	Queries       []Query                  `json:"queries"`
+	Suspicious    []SuspiciousDomainResult `json:"suspicious_domains,omitempty"`
+	CaptureMethod string                   `json:"capture_method"`
 }
 
 // SaveCaptureResult writes the DNS capture result to a JSON file.

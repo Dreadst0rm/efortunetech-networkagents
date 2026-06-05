@@ -26,7 +26,7 @@ type WhitelistedIP struct {
 type Data struct {
 	System      *systeminfo.SystemDetails
 	Connections []scanner.Connection
-	Processes   []scanner.ProcessInfo
+	Processes   []scanner.ProcessEntry
 	Risks       []scanner.ConnectionRisk
 	Security    map[int]processinfo.Info
 	Baseline    baseline.DiffResult
@@ -55,7 +55,7 @@ func GenerateMarkdown(data Data, filename string) error {
 	sb.WriteString("# Process Network Analysis Report\n\n")
 	sb.WriteString(fmt.Sprintf("**Version:** %s | **Scan time:** %s\n\n", version.Version, time.Now().Format(time.RFC1123)))
 
-// System overview
+	// System overview
 	sb.WriteString("## System Information\n\n")
 	if data.System != nil {
 		sb.WriteString("| Field | Value |\n")
@@ -94,7 +94,7 @@ func GenerateMarkdown(data Data, filename string) error {
 			states = append(states, fmt.Sprintf("%s=%d", s, n))
 		}
 		sort.Strings(states)
-		sb.WriteString(fmt.Sprintf("| Connection states | %s |\n", strings.Join(states, "; ") ))
+		sb.WriteString(fmt.Sprintf("| Connection states | %s |\n", strings.Join(states, "; ")))
 	}
 
 	// External endpoints
@@ -327,25 +327,7 @@ func GenerateMarkdown(data Data, filename string) error {
 
 // IsExternal returns true if the connection goes to an external (non-private) IP.
 func IsExternal(c scanner.Connection) bool {
-	if c.RemoteAddr == "" || c.RemoteAddr == "0.0.0.0" || c.RemoteAddr == "*" {
-		return false
-	}
-	// Strip brackets for IPv6
-	ip := c.RemoteAddr
-	if strings.HasPrefix(ip, "[") && strings.Index(ip, "]") > 0 {
-		ip = ip[1:strings.Index(ip, "]")]
-	}
-	return !strings.HasPrefix(ip, "127.") &&
-		!strings.HasPrefix(ip, "192.168.") &&
-		!strings.HasPrefix(ip, "10.") &&
-		!scanner.IsPrivatePrefix(ip, "172") &&
-		!strings.HasPrefix(ip, "[::") &&
-		!strings.HasPrefix(ip, "[fe80::") &&
-		!strings.HasPrefix(ip, "[fd") &&
-		!strings.HasPrefix(ip, "[ff") &&
-		!strings.HasPrefix(ip, "fe80::") &&
-		!strings.HasPrefix(ip, "fd") &&
-		!strings.HasPrefix(ip, "::1")
+	return scanner.IsExternalIP(c.RemoteAddr)
 }
 
 // IsSuspicious returns true if the connection target is outside the local machine.
@@ -355,25 +337,7 @@ func IsSuspicious(c scanner.Connection) bool {
 
 // IsLocal returns true for loopback or private IP ranges (including IPv6).
 func IsLocal(addr string) bool {
-	if addr == "" || addr == "0.0.0.0" || addr == "*" {
-		return true
-	}
-	// Strip brackets for IPv6
-	clean := addr
-	if strings.HasPrefix(clean, "[") && strings.Index(clean, "]") > 0 {
-		clean = clean[1:strings.Index(clean, "]")]
-	}
-	// IPv6: loopback and link-local
-	if clean == "::1" || clean == "::" ||
-		strings.HasPrefix(clean, "fe80::") || strings.HasPrefix(clean, "fd") ||
-		strings.HasPrefix(clean, "ff") {
-		return true
-	}
-	// IPv4 private ranges
-	return strings.HasPrefix(addr, "127.") ||
-		strings.HasPrefix(addr, "192.168.") ||
-		strings.HasPrefix(addr, "10.") ||
-		strings.HasPrefix(addr, "172.")
+	return scanner.IsPrivateIP(addr)
 }
 
 // IsSuspiciousProcess checks whether the process name is one that warrants scrutiny.
@@ -456,16 +420,16 @@ func sanitizeMarkdown(s string) string {
 // GenerateJSON writes the full scan data as a JSON file.
 func GenerateJSON(data Data, filename string) error {
 	type jsonReport struct {
-		Version     string                   `json:"version"`
-		ScanTime    string                   `json:"scan_time"`
+		Version     string                    `json:"version"`
+		ScanTime    string                    `json:"scan_time"`
 		System      *systeminfo.SystemDetails `json:"system"`
-		Connections []scanner.Connection     `json:"connections"`
-		Processes   []scanner.ProcessInfo    `json:"processes"`
-		Risks       []scanner.ConnectionRisk `json:"risks"`
-		Security    map[int]processinfo.Info `json:"security"`
-		Baseline    baseline.DiffResult      `json:"baseline"`
-		Findings    Findings                 `json:"findings"`
-		DNSLookups  int                      `json:"dns_lookups"`
+		Connections []scanner.Connection      `json:"connections"`
+		Processes   []scanner.ProcessEntry    `json:"processes"`
+		Risks       []scanner.ConnectionRisk  `json:"risks"`
+		Security    map[int]processinfo.Info  `json:"security"`
+		Baseline    baseline.DiffResult       `json:"baseline"`
+		Findings    Findings                  `json:"findings"`
+		DNSLookups  int                       `json:"dns_lookups"`
 	}
 
 	dnsCount := 0

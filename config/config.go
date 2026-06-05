@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 )
 
 // WhitelistedIP represents an IP address trusted by the administrator.
@@ -31,10 +30,10 @@ type Alerting struct {
 
 // Thresholds holds numeric thresholds for risk heuristics.
 type Thresholds struct {
-	MinIPConnections        int `json:"min_ip_connections"`
-	MinProcessConnections   int `json:"min_process_connections"`
-	CriticalThreshold       int `json:"critical_threshold"`
-	HighThreshold           int `json:"high_threshold"`
+	MinIPConnections      int `json:"min_ip_connections"`
+	MinProcessConnections int `json:"min_process_connections"`
+	CriticalThreshold     int `json:"critical_threshold"`
+	HighThreshold         int `json:"high_threshold"`
 }
 
 // Excluded holds lists of PIDs and processes to skip during scanning.
@@ -47,10 +46,10 @@ type Excluded struct {
 func Defaults() Config {
 	return Config{
 		Thresholds: Thresholds{
-			MinIPConnections:        5,
-			MinProcessConnections:   5,
-			CriticalThreshold:       3,
-			HighThreshold:           2,
+			MinIPConnections:      5,
+			MinProcessConnections: 5,
+			CriticalThreshold:     3,
+			HighThreshold:         2,
 		},
 		Excluded: Excluded{
 			PIDs:      []int{},
@@ -140,7 +139,7 @@ func (c *Config) IsExcludedPID(pid int) bool {
 // IsWhitelistedIP returns true if the given IP is in the whitelist.
 func (c *Config) IsWhitelistedIP(ip string) bool {
 	for _, w := range c.Whitelist {
-		if strings.EqualFold(w.IP, ip) {
+		if w.IP == ip {
 			return true
 		}
 	}
@@ -150,7 +149,7 @@ func (c *Config) IsWhitelistedIP(ip string) bool {
 // GetWhitelistComment returns the comment for a whitelisted IP, or empty string.
 func (c *Config) GetWhitelistComment(ip string) string {
 	for _, w := range c.Whitelist {
-		if strings.EqualFold(w.IP, ip) {
+		if w.IP == ip {
 			return w.Comment
 		}
 	}

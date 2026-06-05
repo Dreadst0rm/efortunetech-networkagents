@@ -21,7 +21,7 @@ func LookupDomain(addr string) string {
 	if strings.HasPrefix(clean, "[") {
 		idx := strings.Index(clean, "]")
 		if idx > 0 {
-			clean = clean[1 : idx]
+			clean = clean[1:idx]
 		}
 	}
 

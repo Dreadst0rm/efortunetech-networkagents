@@ -283,8 +283,6 @@ func hexToTCPAddr(s string) (*net.TCPAddr, error) {
 			ipBytes[i*2+1] = byte(val & 0xFF)
 		}
 		ip = net.IP(ipBytes)
-
-		ip = net.IP(ipBytes)
 		return &net.TCPAddr{IP: ip, Port: port}, nil
 	}
 

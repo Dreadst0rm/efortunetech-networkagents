@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func enumerateProcesses() ([]ProcessInfo, error) {
+func enumerateProcesses() ([]ProcessEntry, error) {
 	out, err := exec.Command("wmic", "process", "get", "Name,ProcessId", "/format:list").Output()
 	if err != nil {
 		return nil, fmt.Errorf("wmic process failed: %w", err)
@@ -20,8 +20,8 @@ func enumerateProcesses() ([]ProcessInfo, error) {
 	// Between entries: multiple blank lines
 	// Strategy: emit as soon as both Name and ProcessId are present
 	lines := strings.Split(string(out), "\n")
-	var procs []ProcessInfo
-	current := ProcessInfo{enabled: false}
+	var procs []ProcessEntry
+	current := ProcessEntry{enabled: false}
 	for _, line := range lines {
 		if strings.HasPrefix(line, "Name=") {
 			current.Name = strings.TrimSpace(strings.TrimPrefix(line, "Name="))
@@ -32,7 +32,7 @@ func enumerateProcesses() ([]ProcessInfo, error) {
 			current.PID = pid
 			if current.enabled && current.PID >= 0 {
 				procs = append(procs, current)
-				current = ProcessInfo{enabled: false}
+				current = ProcessEntry{enabled: false}
 			}
 		}
 	}
