@@ -18,17 +18,26 @@ param(
     [int]$Timeout = 10
 )
 
-$ScriptDir = Split-Path -Parent $MyInvocation.MyInvocation.MyCommand.Path
-$Binary = Join-Path $ScriptDir "c2update.exe"
+# Resolve script directory robustly (works when run via -File, Invoke-Expression, or Task Scheduler)
+$ScriptDir = $null
+if ($MyInvocation.MyCommand.Path) {
+    $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+} elseif ($PSScriptRoot) {
+    $ScriptDir = $PSScriptRoot
+} else {
+    $ScriptDir = (Get-Location).Path
+}
+
+$Binary = Join-Path $ScriptDir "c2update\c2update.exe"
 $LogFile = Join-Path $ScriptDir "c2update.log"
 
-$Args = @("-output", $Output, "-timeout", $Timeout.ToString())
+# Build arguments for the binary
+$CmdArgs = @("-output", $Output, "-timeout", $Timeout.ToString())
+if ($ThreeDay) { $CmdArgs += @("-30day") }
+if ($Domain)   { $CmdArgs += @("-domain") }
+if ($IPPort)   { $CmdArgs += @("-ipport") }
 
-if ($ThreeDay) { $Args += "-30day" }
-if ($Domain)  { $Args += "-domain" }
-if ($IPPort)  { $Args += "-ipport" }
-
-$Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss 'UTC'"
+$Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Write-Host "[$Timestamp] Starting C2IntelFeeds update..."
 $Timestamp | Out-File -Append -FilePath $LogFile
 
@@ -39,13 +48,21 @@ if (-not (Test-Path $Binary)) {
     exit 1
 }
 
-if (Invoke-Expression "$Binary $($Args -join ' ')" 2>&1 | Out-String) {
-    $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss 'UTC'"
+# Execute the binary directly (no Invoke-Expression)
+Write-Host "  Running: $Binary $($CmdArgs -join ' ')"
+$exitCode = 0
+& $Binary @CmdArgs 2>&1
+if ($LASTEXITCODE -ne 0) {
+    $exitCode = $LASTEXITCODE
+}
+
+if ($exitCode -eq 0) {
+    $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Write-Host "[$Timestamp] Update complete."
     $Timestamp | Out-File -Append -FilePath $LogFile
 } else {
-    $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss 'UTC'"
-    Write-Host "[$Timestamp] Update FAILED." -ForegroundColor Red
+    $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    Write-Host "[$Timestamp] Update FAILED (exit code $exitCode)." -ForegroundColor Red
     $Timestamp | Out-File -Append -FilePath $LogFile
     exit 1
 }

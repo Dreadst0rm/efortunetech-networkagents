@@ -108,14 +108,6 @@ func parsePrivOutput(pid int, line string) Info {
 	return info
 }
 
-func IsProcessElevated(info Info) bool {
-	return info.PrivLevel == Elevated || info.PrivLevel == SYSTEM
-}
-
-func IsProcessUnsigned(info Info) bool {
-	return info.ExePath != "" && !info.IsSigned
-}
-
 func init() {
 	suspiciousPathPatterns = append(suspiciousPathPatterns,
 		"appdata\\local\\temp",

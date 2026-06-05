@@ -202,11 +202,12 @@ func runScan(cfg *config.Config, outputDir string) {
 	fmt.Println()
 
 	// DNS query analysis
+	var captureResult *dns.CaptureResult
 	if cfg.DNSLog {
 		fmt.Println("[DNS] Capturing DNS queries...")
 
 		// Capture DNS cache entries (platform-specific)
-		captureResult, err := dns.CaptureDNSQueries(cfg, sysInfo.Hostname)
+		captureResult, err = dns.CaptureDNSQueries(cfg, sysInfo.Hostname)
 		if err != nil {
 			log.Printf("Warning: DNS capture failed: %v", err)
 		} else if captureResult != nil {
@@ -235,6 +236,22 @@ func runScan(cfg *config.Config, outputDir string) {
 				log.Printf("Warning: failed to save DNS capture: %v", err)
 			} else {
 				fmt.Printf("  DNS capture saved: %s\n", dnsFile)
+			}
+
+			// Cross-reference DNS queries with connection IPs to populate DNSName
+			ipToDomain := dns.DNSQueriesToIPMap(captureResult.Queries)
+			dnsMapped := 0
+			for i := range conns {
+				c := &conns[i]
+				if c.DNSName == "" && c.RemoteAddr != "" {
+					if domain, ok := ipToDomain[c.RemoteAddr]; ok {
+						c.DNSName = domain
+						dnsMapped++
+					}
+				}
+			}
+			if dnsMapped > 0 {
+				fmt.Printf("  DNS queries mapped to %d connection IP(s)\n", dnsMapped)
 			}
 		}
 
@@ -288,6 +305,7 @@ func runScan(cfg *config.Config, outputDir string) {
 		Security:    secInfo,
 		Baseline:    diff,
 		Whitelist:   whitelist,
+		DNSQueries:  captureResult,
 	}
 	timestamp := time.Now().Format("20060102_150405")
 	mdFile := fmt.Sprintf("%s/network_sentinel_%s_%s.md", outputDir, sysInfo.Hostname, timestamp)

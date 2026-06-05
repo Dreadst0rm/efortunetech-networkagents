@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"networksentinel/baseline"
+	"networksentinel/dns"
 	"networksentinel/processinfo"
 	"networksentinel/scanner"
 	"networksentinel/systeminfo"
@@ -32,6 +33,7 @@ type Data struct {
 	Security    map[int]processinfo.Info
 	Baseline    baseline.DiffResult
 	Whitelist   []WhitelistedIP
+	DNSQueries  *dns.CaptureResult
 }
 
 // Findings summarizes the risk analysis.
@@ -136,6 +138,22 @@ func GenerateMarkdown(data Data, filename string) error {
 			sort.Strings(ports)
 			sb.WriteString(fmt.Sprintf("| `%s` | `%s` | `%s` |\n", addr, "", strings.Join(ports, ", ")))
 		}
+	}
+
+	// DNS Queries
+	sb.WriteString("\n## DNS Queries\n\n")
+	if data.DNSQueries != nil && len(data.DNSQueries.Queries) > 0 {
+		sb.WriteString("| Process | PID | Query Name |\n")
+		sb.WriteString("|---------|---|----------|\n")
+		for _, q := range data.DNSQueries.Queries {
+			process := q.Process
+			if process == "" {
+				process = fmt.Sprintf("PID:%d", q.PID)
+			}
+			sb.WriteString(fmt.Sprintf("| `%s` | %d | `%s` |\n", process, q.PID, q.QueryName))
+		}
+	} else {
+		sb.WriteString("No DNS queries captured.\n\n")
 	}
 
 	// Suspicious connections

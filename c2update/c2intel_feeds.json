@@ -1,0 +1,3505 @@
+{
+  "format": "c2intelfeeds",
+  "source": "IPC2s+IPPortC2s+domainC2s",
+  "generated_at": "2026-06-05T05:56:37Z",
+  "indicator_count": 269,
+  "indicators": [
+    {
+      "indicator": "1.117.61.9",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "1.117.77.166",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "1.15.100.187",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "1.92.101.103",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "101.126.10.34",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "101.33.225.32",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "101.35.214.58",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "101.35.95.103",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "101.43.30.6",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "103.149.93.107",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "103.210.236.87",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "103.242.12.143",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "106.13.29.104",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "106.52.207.50",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "107.150.105.91",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "107.151.246.172",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "107.172.217.220",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "107.173.122.193",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "107.174.115.43",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "109.244.130.113",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "111.228.4.54",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "111.228.55.96",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "111.229.4.108",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "111.230.217.36",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "112.124.71.123",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "112.125.19.107",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "112.213.106.53",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "113.44.136.127",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "113.45.253.80",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "115.190.140.220",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "115.190.161.178",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "115.190.237.175",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "115.190.250.28",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "116.198.233.179",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "116.203.31.207",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "117.50.184.221",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "117.72.168.103",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "117.72.175.125",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "117.72.178.246",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "117.72.181.104",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "117.72.191.140",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "117.72.242.9",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "117.72.39.83",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "118.89.203.103",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "118.89.79.131",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "119.29.112.239",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "119.29.117.194",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "119.29.198.193",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "119.45.166.6",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "119.91.26.245",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "120.48.66.205",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "121.4.92.72",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "123.58.64.57",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "124.220.235.4",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "124.220.36.247",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "124.220.6.158",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "124.222.155.113",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "124.223.90.150",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "124.70.184.106",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "124.71.141.30",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "129.204.14.131",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "129.211.2.123",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "134.122.134.243",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "134.175.78.181",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "139.180.189.95",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "139.196.223.82",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "139.196.50.117",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "139.224.23.63",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "143.92.43.153",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "143.92.43.231",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "143.92.43.246",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "147.78.2.110",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "150.158.109.61",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "150.187.25.242",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "151.245.90.45",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "152.32.202.240",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "154.12.86.154",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "154.201.68.191",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "154.219.115.123",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "154.221.17.44",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "154.38.114.115",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "154.83.12.132",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "156.225.22.84",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "156.239.238.117",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "156.239.252.191",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "156.245.144.203",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "156.245.147.101",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "156.245.147.98",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "161.248.87.10",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "165.154.225.239",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "167.179.76.179",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "168.222.97.93",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "172.245.156.179",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "172.86.76.154",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "175.178.36.137",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "176.97.124.68",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "179.43.186.214",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "180.76.141.175",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "182.255.44.96",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "183.63.173.29",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "192.3.233.166",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "193.142.146.30",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "193.53.127.220",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "198.44.177.179",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "207.148.68.118",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "207.56.226.75",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "207.56.229.234",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "209.200.246.194",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "209.200.246.82",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "223.26.59.226",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "34.202.161.96",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "36.138.84.183",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "38.181.42.160",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "38.54.112.234",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "38.54.115.233",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "39.100.88.189",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "39.102.125.11",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "43.138.192.16",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "43.138.39.212",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "43.139.108.161",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "43.139.170.200",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "43.142.137.169",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "43.144.19.220",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "43.153.2.113",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "43.156.42.49",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "43.167.177.224",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "43.199.78.142",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "43.204.108.246",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "43.230.200.254",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "43.255.157.229",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "45.116.78.181",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "45.152.65.240",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "45.154.12.150",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "45.202.249.88",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "45.207.192.190",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "45.227.253.121",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "45.43.59.179",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "46.20.109.225",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.103.95.85",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.104.159.246",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.104.248.7",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.105.36.109",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.107.136.106",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.108.25.113",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.109.198.8",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.116.211.215",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.118.25.45",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.120.20.86",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.120.32.72",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.121.137.8",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.122.47.221",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.129.171.26",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.129.2.130",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.236.110.1",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.236.130.154",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.236.149.142",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.236.159.248",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.236.56.15",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.236.91.172",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.82.234.12",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.83.254.175",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.92.208.27",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "47.94.162.43",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "49.233.215.164",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "49.234.199.152",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "60.247.206.23",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "62.234.22.228",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "64.89.161.183",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "67.219.102.244",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "68.64.178.130",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "70.34.196.238",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "8.130.80.145",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "8.134.70.73",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "8.137.149.67",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "8.148.184.136",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "8.159.146.72",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "8.163.104.36",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "8.163.49.50",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "8.17.56.128",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "8.218.224.15",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "8.219.76.168",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "81.68.216.220",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "81.68.89.216",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "81.71.20.155",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "82.156.219.31",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "82.156.62.131",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "82.157.52.180",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "83.229.126.183",
+      "indicator_type": "ip",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "1314180598-04zr21qelt.ap-guangzhou.tencentscf.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "1325813086-kvn4jlpgeu.ap-shanghai.tencentscf.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "1364170351-gsw88cee73.ap-guangzhou.tencentscf.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "1364170351-kld29tgkc1.ap-guangzhou.tencentscf.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "3se9ewodke339f0e83.connectivitytests.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "61coding.cn",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "agentkernel.top",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ap.johamp.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "api.telegram.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "api.zhimawithyou.top",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "api1.haedalcompany.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "asusupdateserver.asuscomm.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "at1.227api.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "at2.227api.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "at3.227api.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "audioweb.cnr.cn",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "avsdfe.win.com.cn",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "bgfi-groupe.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "bxx2rghe05kng.cfc-execute.bj.baidubce.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "cc.twnic.top",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "check.judicical.ml",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "check1.judicical.ml",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "cloudcdn.gleeze.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ct.feliz.icu",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "d14hh3kwt0vf8s.cloudfront.net",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "d2.googleos-js.vip",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "dd.googleos-js.vip",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "dianqi1.dianqi2.jiayongdianqi.xyz",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "dianqi1.jiayongdianqi.xyz",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "dianqi2.dianqi1.jiayongdianqi.xyz",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "dianqi2.jiayongdianqi.xyz",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "down.microsoft.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "down.microsoft.com.w.kunlunca.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ds.metric-take-datadqct.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "flyingbbird.cc",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "future.dingtalk.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "jkzprb4y.yuncdn.site",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "job.itechno.cc",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "lab.google-analytcis.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "metric-take-datadqct.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "missmovie.lol",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "mlcos.baidudns.org",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "n1.google-analytcis.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "n2.google-analytcis.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "n3.google-analytcis.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns.1.3.0o0.foo",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns.1.4.0o0.foo",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns1.admlistdel.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns1.akawowfast.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns1.cryptwechat.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns1.gygiuh.online",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns1.jane2010.filegear-sg.me",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns1.microoosoft.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns1.ns-apache.jo3.org",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns1.nsebseshop.cloud",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns1.translategoos.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns1.twnic.top",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns2.admlistdel.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns2.akawowfast.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns2.cryptwechat.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns2.jane2010.filegear-sg.me",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns2.microoosoft.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns2.nsebseshop.cloud",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns2.translategoos.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns3.admlistdel.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns3.akawowfast.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns3.nsebseshop.cloud",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "ns3.translategoos.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "secure-server.sbs",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "services.remotewire.net",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "static.slbc7890.shop",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "update.microsoftapply.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "update.mloadspring.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "updates.fisgloval.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "upgrade.mloadspring.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "wsus.227api.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "wsus2.227api.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "www.dyshop.online",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "www.mfmni.shop",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "www.microsslcheck.com",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    },
+    {
+      "indicator": "zhimawithyou.top",
+      "indicator_type": "domain",
+      "malware_family": "CobaltStrike",
+      "country": "",
+      "confidence": 70,
+      "tags": [
+        "c2intelfeeds",
+        "cobaltstrike"
+      ],
+      "source": "c2intelfeeds",
+      "status": "active"
+    }
+  ]
+}

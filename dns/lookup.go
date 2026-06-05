@@ -212,3 +212,40 @@ func ResolveConnectionsDNS(conns []scanner.Connection, concurrency int) int {
 
 	return count
 }
+
+// DNSQueriesToIPMap builds a map from IP address to the first domain name
+// that resolved to it from the given DNS queries.
+func DNSQueriesToIPMap(queries []Query) map[string]string {
+	ipMap := make(map[string]string)
+	for _, q := range queries {
+		if q.QueryName == "" {
+			continue
+		}
+		if ip := ResolveDomainToIP(q.QueryName); ip != "" {
+			if _, exists := ipMap[ip]; !exists {
+				ipMap[ip] = q.QueryName
+			}
+		}
+	}
+	return ipMap
+}
+
+// ResolveDomainToIP performs a forward DNS lookup and returns the first IPv4 address.
+func ResolveDomainToIP(domain string) string {
+	if domain == "" {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	ips, err := dnsResolver.LookupIPAddr(ctx, domain)
+	if err != nil || len(ips) == 0 {
+		return ""
+	}
+	for _, ip := range ips {
+		if ip.IP.To4() != nil {
+			return ip.IP.String()
+		}
+	}
+	return ""
+}

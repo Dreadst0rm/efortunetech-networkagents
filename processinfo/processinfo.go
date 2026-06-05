@@ -2,7 +2,12 @@
 // Platform-specific implementations are in _windows.go, _linux.go, _darwin.go.
 package processinfo
 
-import "strings"
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+)
 
 // AdminPrivilegeLevel represents the admin privilege level of a process.
 type AdminPrivilegeLevel string
@@ -77,6 +82,33 @@ func (i IntegrityLevel) String() string {
 func (i Info) IsPrivEscalation() bool {
 	isElevated := i.PrivLevel == Elevated || i.PrivLevel == SYSTEM
 	return isElevated && !i.IsSigned && IsSuspiciousPath(i.ExePath)
+}
+
+// IsProcessElevated reports whether the given process info indicates elevated privileges.
+func IsProcessElevated(info Info) bool {
+	return info.PrivLevel == SYSTEM || info.PrivLevel == Elevated
+}
+
+// IsProcessUnsigned reports whether the process has an executable path but no signature.
+func IsProcessUnsigned(info Info) bool {
+	return info.ExePath != "" && !info.IsSigned
+}
+
+// uidToUsername looks up the username for the given UID by reading /etc/passwd.
+func uidToUsername(uid int) string {
+	passwd, err := os.ReadFile("/etc/passwd")
+	if err != nil {
+		return fmt.Sprintf("uid%d", uid)
+	}
+	for _, line := range strings.Split(string(passwd), "\n") {
+		fields := strings.Split(line, ":")
+		if len(fields) >= 3 {
+			if v, err := strconv.Atoi(fields[2]); err == nil && v == uid {
+				return fields[0]
+			}
+		}
+	}
+	return fmt.Sprintf("uid%d", uid)
 }
 
 // suspiciousPathPatterns is populated by each OS-specific init() function.

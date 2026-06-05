@@ -29,6 +29,15 @@ GOOS=linux GOARCH=amd64 go build -o networksentinel_linux .
 GOOS=darwin GOARCH=arm64 go build -o networksentinel_darwin .
 ```
 
+### Building c2update
+
+The `c2update` tool is a standalone binary in a separate module:
+
+```bash
+cd c2update && go build -o c2update.exe .
+```
+
+
 ## Usage
 
 ### One-shot scan
@@ -52,6 +61,7 @@ Scans every 60 seconds until interrupted (Ctrl+C).
 | `-config` | Path to config file | `config.json` |
 | `-output` | Output directory for reports | `.` |
 | `-daemon` | Scan interval in seconds (0 = one-shot) | `0` |
+| `-feed` | Path to external C2 threat intel JSON feed | (none) |
 | `-h` | Show help | |
 
 ## Configuration
@@ -139,7 +149,61 @@ curl -s https://threatfox.abuse.ch/api/v1/export/json/ | python3 -c "..." > thre
 
 **Permanent update:** Edit `threatintel/feeds.go`, add `IOC` structs to `KnownC2IPs`, then rebuild.
 
-See platform-specific guides for detailed instructions.
+### Updating C2IntelFeeds (automated)
+
+The `c2update` tool fetches live C2 indicators from the [C2IntelFeeds](https://github.com/drb-ra/C2IntelFeeds) repository and writes them as JSON for NetworkSentinel.
+
+#### Build
+
+```bash
+cd c2update && go build -o c2update.exe .
+```
+
+#### Run directly
+
+```bash
+./c2update/c2update -output c2intel_feeds.json
+```
+
+#### Run with wrapper script
+
+```powershell
+.\c2update.ps1 -output c2intel_feeds.json
+```
+
+```bash
+./c2update.sh -output c2intel_feeds.json
+```
+
+#### Flags
+
+| Flag | Description |
+|------|-------------|
+| `-output` | Output JSON feed file path |
+| `-30day` | Fetch only the 30-day active IP list |
+| `-domain` | Fetch only the domain C2 list |
+| `-ipport` | Fetch only the IP+port C2 list |
+| `-timeout` | HTTP timeout in seconds (default: 10) |
+
+#### Scheduled update (Windows Task Scheduler)
+
+```powershell
+schtasks /create /tn "C2IntelFeedsUpdate" /tr "powershell -ExecutionPolicy Bypass -File C:\path\to\c2update.ps1" /sc daily /st 02:00
+```
+
+#### Scheduled update (cron)
+
+```bash
+0 2 * * * /path/to/c2update.sh -output /path/to/c2intel_feeds.json
+```
+
+#### Scheduled update (systemd timer)
+
+```bash
+sudo cp c2update.service /etc/systemd/system/
+sudo cp c2update.timer /etc/systemd/system/
+sudo systemctl enable --now c2update.timer
+```
 
 ## Testing
 

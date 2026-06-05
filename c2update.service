@@ -7,8 +7,8 @@ After=network-online.target
 [Service]
 Type=oneshot
 User=netadmin
-WorkingDirectory=/opt/networksentinel/c2update
-ExecStart=/opt/networksentinel/c2update/c2update -output /opt/networksentinel/c2update/c2intel_feeds.json
+WorkingDirectory=/opt/networksentinel
+ExecStart=/opt/networksentinel/c2update/c2update -output /opt/networksentinel/c2intel_feeds.json
 StandardOutput=journal
 StandardError=journal
 # Run at most one instance at a time

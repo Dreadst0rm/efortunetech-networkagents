@@ -64,30 +64,6 @@ func setPrivileges(info *Info, euid int) {
 	}
 }
 
-func uidToUsername(uid int) string {
-	passwd, err := os.ReadFile("/etc/passwd")
-	if err != nil {
-		return fmt.Sprintf("uid%d", uid)
-	}
-	for _, line := range strings.Split(string(passwd), "\n") {
-		fields := strings.Split(line, ":")
-		if len(fields) >= 3 {
-			if v, err := strconv.Atoi(fields[2]); err == nil && v == uid {
-				return fields[0]
-			}
-		}
-	}
-	return fmt.Sprintf("uid%d", uid)
-}
-
-func IsProcessElevated(info Info) bool {
-	return info.PrivLevel == SYSTEM || info.PrivLevel == Elevated
-}
-
-func IsProcessUnsigned(info Info) bool {
-	return info.ExePath != "" && !info.IsSigned
-}
-
 func init() {
 	suspiciousPathPatterns = append(suspiciousPathPatterns,
 		"/tmp/",

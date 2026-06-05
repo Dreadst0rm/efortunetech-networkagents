@@ -14,7 +14,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BINARY="${SCRIPT_DIR}/c2update"
+BINARY="${SCRIPT_DIR}/c2update/c2update"
 OUTPUT="${SCRIPT_DIR}/c2intel_feeds.json"
 LOG_FILE="${SCRIPT_DIR}/c2update.log"
 
@@ -46,7 +46,7 @@ echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] Starting C2IntelFeeds update..." | t
 
 if [ ! -f "$BINARY" ]; then
   echo "ERROR: c2update binary not found at $BINARY" | tee -a "$LOG_FILE"
-  echo "Build it with: cd c2update && go build -o c2update . " | tee -a "$LOG_FILE"
+  echo "Build it with: cd c2update && go build -o c2update ." | tee -a "$LOG_FILE"
   exit 1
 fi
 
