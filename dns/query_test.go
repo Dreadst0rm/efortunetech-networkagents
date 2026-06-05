@@ -65,27 +65,6 @@ func TestCheckDomain_Keywords(t *testing.T) {
 	}
 }
 
-func TestQueryLog_AddAndGet(t *testing.T) {
-	log := NewQueryLog()
-	log.AddRecord(Query{QueryName: "test.com", PID: 1234})
-	queries := log.GetQueries()
-	if len(queries) != 1 {
-		t.Errorf("expected 1 query, got %d", len(queries))
-	}
-	if queries[0].PID != 1234 {
-		t.Errorf("expected PID 1234, got %d", queries[0].PID)
-	}
-}
-
-func TestQueryLog_Clear(t *testing.T) {
-	log := NewQueryLog()
-	log.AddRecord(Query{QueryName: "test.com"})
-	log.Clear()
-	if len(log.GetQueries()) != 0 {
-		t.Errorf("expected 0 queries after clear, got %d", len(log.GetQueries()))
-	}
-}
-
 func TestCheckDomain_KeywordOnly(t *testing.T) {
 	result := CheckDomain("login-portal.example.com")
 	if result.Confidence == 0 {

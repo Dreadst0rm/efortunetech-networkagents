@@ -11,6 +11,7 @@ import (
 type WhitelistedIP struct {
 	IP      string `json:"ip"`
 	Comment string `json:"comment"`
+	parsed  net.IP
 }
 
 // Config holds all configurable thresholds and settings.
@@ -119,6 +120,8 @@ func Load(filename string) (*Config, error) {
 		for i, w := range cfg.Whitelist {
 			if net.ParseIP(w.IP) == nil {
 				cfg.Whitelist[i].IP = ""
+			} else {
+				cfg.Whitelist[i].parsed = net.ParseIP(w.IP)
 			}
 		}
 	}
@@ -137,9 +140,17 @@ func (c *Config) IsExcludedPID(pid int) bool {
 }
 
 // IsWhitelistedIP returns true if the given IP is in the whitelist.
-func (c *Config) IsWhitelistedIP(ip string) bool { //nolint:SA6005 // IP addresses don't need case-insensitive comparison
+func (c *Config) IsWhitelistedIP(ip string) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
 	for _, w := range c.Whitelist {
-		if w.IP == ip {
+		pw := w.parsed
+		if pw == nil {
+			pw = net.ParseIP(w.IP)
+		}
+		if pw != nil && pw.Equal(parsed) {
 			return true
 		}
 	}
@@ -147,9 +158,17 @@ func (c *Config) IsWhitelistedIP(ip string) bool { //nolint:SA6005 // IP address
 }
 
 // GetWhitelistComment returns the comment for a whitelisted IP, or empty string.
-func (c *Config) GetWhitelistComment(ip string) string { //nolint:SA6005 // IP addresses don't need case-insensitive comparison
+func (c *Config) GetWhitelistComment(ip string) string {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return ""
+	}
 	for _, w := range c.Whitelist {
-		if w.IP == ip {
+		pw := w.parsed
+		if pw == nil {
+			pw = net.ParseIP(w.IP)
+		}
+		if pw != nil && pw.Equal(parsed) {
 			return w.Comment
 		}
 	}

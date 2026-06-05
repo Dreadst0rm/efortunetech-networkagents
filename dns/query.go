@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -17,40 +16,6 @@ type Query struct {
 	QueryType string
 	Responses []string
 	Timestamp time.Time
-}
-
-// QueryLog is a thread-safe DNS query logger.
-type QueryLog struct {
-	mu      sync.Mutex
-	queries []Query
-}
-
-// NewQueryLog creates a new DNS query log.
-func NewQueryLog() *QueryLog {
-	return &QueryLog{}
-}
-
-// AddRecord appends a DNS query observation.
-func (l *QueryLog) AddRecord(q Query) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.queries = append(l.queries, q)
-}
-
-// GetQueries returns all recorded queries.
-func (l *QueryLog) GetQueries() []Query {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	out := make([]Query, len(l.queries))
-	copy(out, l.queries)
-	return out
-}
-
-// Clear removes all recorded queries.
-func (l *QueryLog) Clear() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.queries = nil
 }
 
 // SuspiciousDomainResult holds the result of domain suspicion analysis.
@@ -159,7 +124,6 @@ func isVowel(r rune) bool {
 type CaptureResult struct {
 	Timestamp     time.Time                `json:"timestamp"`
 	Hostname      string                   `json:"hostname"`
-	QueryLog      *QueryLog                `json:"query_log"`
 	Queries       []Query                  `json:"queries"`
 	Suspicious    []SuspiciousDomainResult `json:"suspicious_domains,omitempty"`
 	CaptureMethod string                   `json:"capture_method"`

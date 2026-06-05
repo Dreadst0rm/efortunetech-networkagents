@@ -37,16 +37,6 @@ func AssessConnectionRiskWithThreatIntel(conns []Connection, secInfo map[int]pro
 	return risks
 }
 
-// PrivilegeLevel represents the severity of a process privilege.
-type PrivilegeLevel string
-
-const (
-	PrivElevated PrivilegeLevel = "elevated"
-	PrivStandard PrivilegeLevel = "standard"
-	PrivSystem   PrivilegeLevel = "system"
-	PrivUnknown  PrivilegeLevel = "unknown"
-)
-
 // RiskLevel represents the severity of a suspicious connection.
 type RiskLevel string
 
@@ -56,21 +46,6 @@ const (
 	RiskHigh     RiskLevel = "high"
 	RiskCritical RiskLevel = "critical"
 )
-
-// ProcessSecurityInfo carries per-PID security context for Phase 3.
-type ProcessSecurityInfo struct {
-	PID        int
-	Process    string
-	Username   string
-	PrivLevel  PrivilegeLevel
-	IsElevated bool
-	IsSigned   bool
-	Signer     string
-	ExePath    string
-	IsTempPath bool
-	IsSYSTEM   bool
-	IsAdmin    bool
-}
 
 // ConnectionRisk annotates a connection with risk analysis.
 type ConnectionRisk struct {
@@ -113,12 +88,13 @@ func ScanAll(cfg *config.Config) ([]Connection, []ProcessEntry, map[int]processi
 	}
 
 	// Correlate connections to processes via PID
+	procMap := make(map[int]string)
+	for _, p := range procs {
+		procMap[p.PID] = p.Name
+	}
 	for i := range conns {
-		for _, p := range procs {
-			if conns[i].ProcessID == p.PID {
-				conns[i].Process = p.Name
-				break
-			}
+		if name, ok := procMap[conns[i].ProcessID]; ok {
+			conns[i].Process = name
 		}
 		conns[i].Direction = determineDirection(&conns[i])
 	}

@@ -215,31 +215,6 @@ func runScan(cfg *config.Config, outputDir string) {
 	}
 
 	var diff baseline.DiffResult
-	prevSnap, err := baseline.Load(baselineFile)
-	if err == nil && prevSnap != nil {
-		fmt.Println("[3/5] Comparing against previous baseline...")
-		currentEntries := make([]baseline.Entry, 0, len(conns))
-		for _, c := range conns {
-			currentEntries = append(currentEntries, baseline.Entry{
-				ProcessID:  c.ProcessID,
-				Process:    c.Process,
-				LocalAddr:  c.LocalAddr,
-				LocalPort:  c.LocalPort,
-				RemoteAddr: c.RemoteAddr,
-				RemotePort: c.RemotePort,
-				State:      c.State,
-			})
-		}
-		diff = baseline.Diff(currentEntries, prevSnap)
-		fmt.Printf("  New connections: %d | Disappeared: %d | Unchanged: %d\n",
-			len(diff.New), len(diff.Gone), len(diff.Unchanged))
-		fmt.Printf("  Baseline age: %s\n", diff.BaselineAge.Round(time.Second))
-		fmt.Println()
-	} else {
-		fmt.Println("[3/5] No previous baseline found (will create one after scan)")
-		fmt.Println()
-	}
-
 	currentEntries := make([]baseline.Entry, 0, len(conns))
 	for _, c := range conns {
 		currentEntries = append(currentEntries, baseline.Entry{
@@ -252,6 +227,20 @@ func runScan(cfg *config.Config, outputDir string) {
 			State:      c.State,
 		})
 	}
+
+	prevSnap, err := baseline.Load(baselineFile)
+	if err == nil && prevSnap != nil {
+		fmt.Println("[3/5] Comparing against previous baseline...")
+		diff = baseline.Diff(currentEntries, prevSnap)
+		fmt.Printf("  New connections: %d | Disappeared: %d | Unchanged: %d\n",
+			len(diff.New), len(diff.Gone), len(diff.Unchanged))
+		fmt.Printf("  Baseline age: %s\n", diff.BaselineAge.Round(time.Second))
+		fmt.Println()
+	} else {
+		fmt.Println("[3/5] No previous baseline found (will create one after scan)")
+		fmt.Println()
+	}
+
 	if err := baseline.Save(baselineFile, sysInfo.Hostname, currentEntries); err != nil {
 		log.Printf("Warning: failed to save baseline: %v", err)
 	}

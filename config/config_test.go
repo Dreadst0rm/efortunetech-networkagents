@@ -173,6 +173,26 @@ func TestIsWhitelistedIPCaseInsensitive(t *testing.T) {
 	}
 }
 
+func TestIsWhitelistedIP_InvalidIPs(t *testing.T) {
+	cfg := &Config{
+		Whitelist: []WhitelistedIP{
+			{IP: "8.8.8.8", Comment: "Google DNS"},
+		},
+	}
+	if cfg.IsWhitelistedIP("") {
+		t.Error("expected empty string to NOT match")
+	}
+	if cfg.IsWhitelistedIP("0.0.0.0") {
+		t.Error("expected 0.0.0.0 to NOT match")
+	}
+	if cfg.IsWhitelistedIP("*") {
+		t.Error("expected * to NOT match")
+	}
+	if cfg.IsWhitelistedIP("[::1]:443") {
+		t.Error("expected bracketed IPv6 with port to NOT match")
+	}
+}
+
 func TestGetWhitelistComment(t *testing.T) {
 	cfg := &Config{
 		Whitelist: []WhitelistedIP{
