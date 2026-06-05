@@ -2,6 +2,8 @@ package dns
 
 import (
 	"testing"
+
+	"networksentinel/scanner"
 )
 
 // BenchmarkCheckDomain measures DNS domain suspicion analysis.
@@ -101,4 +103,104 @@ func BenchmarkLookupDomainsParallel(b *testing.B) {
 			}
 		}
 	})
+}
+
+func TestResolveAddr_EmptyAddr(t *testing.T) {
+	name, err := resolveAddr("")
+	if name != "" {
+		t.Errorf("expected empty name, got %q", name)
+	}
+	if err != nil {
+		t.Errorf("expected nil error, got %v", err)
+	}
+}
+
+func TestResolveAddr_Localhost(t *testing.T) {
+	name, err := resolveAddr("127.0.0.1")
+	t.Logf("resolveAddr(127.0.0.1) = %q, err = %v", name, err)
+}
+
+func TestResolveAddr_InvalidIP(t *testing.T) {
+	name, err := resolveAddr("0.0.0.0")
+	if name != "" {
+		t.Errorf("expected empty name for 0.0.0.0, got %q", name)
+	}
+	if err != nil {
+		t.Errorf("expected nil error for 0.0.0.0, got %v", err)
+	}
+}
+
+func TestResolveAddr_Wildcard(t *testing.T) {
+	name, err := resolveAddr("*")
+	if name != "" {
+		t.Errorf("expected empty name for *, got %q", name)
+	}
+	if err != nil {
+		t.Errorf("expected nil error for *, got %v", err)
+	}
+}
+
+func TestLookupDomainsParallel_EmptyInput(t *testing.T) {
+	results := LookupDomainsParallel([]string{}, 5)
+	if len(results) != 0 {
+		t.Errorf("expected 0 results for empty input, got %d", len(results))
+	}
+}
+
+func TestLookupDomainsParallel_ZeroConcurrency(t *testing.T) {
+	addrs := []string{"127.0.0.1"}
+	results := LookupDomainsParallel(addrs, 0)
+	if len(results) != 1 {
+		t.Errorf("expected 1 result, got %d", len(results))
+	}
+}
+
+func TestLookupDomainsParallel_Deduplication(t *testing.T) {
+	addrs := []string{"127.0.0.1", "127.0.0.1", "127.0.0.1"}
+	results := LookupDomainsParallel(addrs, 1)
+	if len(results) != 3 {
+		t.Errorf("expected 3 results (same addr), got %d", len(results))
+	}
+}
+
+func TestResolveConnectionsDNS_EmptyConns(t *testing.T) {
+	count := ResolveConnectionsDNS([]scanner.Connection{}, 5)
+	if count != 0 {
+		t.Errorf("expected 0 resolved, got %d", count)
+	}
+}
+
+func TestResolveConnectionsDNS_NoOutbound(t *testing.T) {
+	conns := []scanner.Connection{
+		{
+			Direction: "inbound",
+			RemoteAddr: "0.0.0.0",
+		},
+	}
+	count := ResolveConnectionsDNS(conns, 5)
+	if count != 0 {
+		t.Errorf("expected 0 resolved for inbound, got %d", count)
+	}
+}
+
+func TestDNSQueriesToIPMap_Empty(t *testing.T) {
+	m := DNSQueriesToIPMap([]Query{})
+	if len(m) != 0 {
+		t.Errorf("expected empty map, got %d entries", len(m))
+	}
+}
+
+func TestDNSQueriesToIPMap_WithQueries(t *testing.T) {
+	q := []Query{
+		{QueryName: "127.0.0.1"},
+	}
+	m := DNSQueriesToIPMap(q)
+	t.Logf("DNSQueriesToIPMap result: %v", m)
+}
+
+func TestResolveDomainToIP_Empty(t *testing.T) {
+	ip := ResolveDomainToIP("")
+	if ip != "" {
+		t.Errorf("expected empty IP for empty domain, got %q", ip)
+	}
 }

@@ -6,6 +6,7 @@ import (
 
 	"networksentinel/config"
 	"networksentinel/processinfo"
+	"networksentinel/threatintel"
 )
 
 func TestAssessConnectionRisk_SingleSuspiciousPort(t *testing.T) {
@@ -758,5 +759,190 @@ func TestAssessConnectionRisk_ProcessConnectionCount(t *testing.T) {
 	}
 	if !allHaveProcCount {
 		t.Error("expected all connections to have process connection count reason")
+	}
+}
+
+func TestAssessConnectionRiskWithThreatIntel_EmptyDB(t *testing.T) {
+	cfg := config.Defaults()
+	conns := []Connection{
+		{
+			ProcessID:  1234,
+			Process:    "chrome.exe",
+			RemoteAddr: "203.0.113.50",
+			RemotePort: 4444,
+			Protocol:   "TCP",
+			State:      "ESTABLISHED",
+			Direction:  "outbound",
+		},
+	}
+	tiDB := threatintel.NewThreatIntelDB()
+	risks := AssessConnectionRiskWithThreatIntel(conns, nil, &cfg, tiDB)
+	if len(risks) != 1 {
+		t.Fatalf("expected 1 risk, got %d", len(risks))
+	}
+}
+
+func TestAssessConnectionRiskWithThreatIntel_MatchCritical(t *testing.T) {
+	cfg := config.Config{
+		Thresholds: config.Thresholds{
+			MinIPConnections:      1,
+			MinProcessConnections: 1,
+			CriticalThreshold:     1,
+			HighThreshold:         1,
+		},
+		Excluded: config.Excluded{
+			PIDs:      []int{},
+			Processes: []string{},
+		},
+	}
+	tiDB := threatintel.NewThreatIntelDB()
+	tiDB.AddIOC(threatintel.IOC{
+		Indicator:     "203.0.113.50",
+		IndicatorType: "ipv4",
+		MalwareFamily: "CobaltStrike",
+		Country:       "RU",
+		Confidence:    95,
+		Tags:          []string{"c2"},
+		Source:        "test",
+		Status:        "active",
+	})
+	conns := []Connection{
+		{
+			ProcessID:  1234,
+			Process:    "chrome.exe",
+			RemoteAddr: "203.0.113.50",
+			RemotePort: 443,
+			Protocol:   "TCP",
+			State:      "ESTABLISHED",
+			Direction:  "outbound",
+		},
+	}
+	risks := AssessConnectionRiskWithThreatIntel(conns, nil, &cfg, tiDB)
+	if len(risks) != 1 {
+		t.Fatalf("expected 1 risk, got %d", len(risks))
+	}
+	found := false
+	for _, reason := range risks[0].RiskReasons {
+		if strings.Contains(reason, "THREAT_INTEL") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected THREAT_INTEL reason, got: %v", risks[0].RiskReasons)
+	}
+	if risks[0].RiskLevel != RiskCritical {
+		t.Errorf("expected critical risk for confidence>=90, got %s", risks[0].RiskLevel)
+	}
+}
+
+func TestAssessConnectionRiskWithThreatIntel_MatchHigh(t *testing.T) {
+	cfg := config.Config{
+		Thresholds: config.Thresholds{
+			MinIPConnections:      5,
+			MinProcessConnections: 5,
+			CriticalThreshold:     3,
+			HighThreshold:         2,
+		},
+		Excluded: config.Excluded{
+			PIDs:      []int{},
+			Processes: []string{},
+		},
+	}
+	tiDB := threatintel.NewThreatIntelDB()
+	tiDB.AddIOC(threatintel.IOC{
+		Indicator:     "198.51.100.10",
+		IndicatorType: "ipv4",
+		MalwareFamily: "Metasploit",
+		Country:       "CN",
+		Confidence:    85,
+		Tags:          []string{"c2"},
+		Source:        "test",
+		Status:        "active",
+	})
+	conns := []Connection{
+		{
+			ProcessID:  5678,
+			Process:    "cmd.exe",
+			RemoteAddr: "198.51.100.10",
+			RemotePort: 4444,
+			Protocol:   "TCP",
+			State:      "SYN_SENT",
+			Direction:  "outbound",
+		},
+	}
+	risks := AssessConnectionRiskWithThreatIntel(conns, nil, &cfg, tiDB)
+	if len(risks) != 1 {
+		t.Fatalf("expected 1 risk, got %d", len(risks))
+	}
+	// Original: suspicious port (4444), suspicious process (cmd.exe), transition state (SYN_SENT) = 3 reasons = critical
+	// Threat intel confidence 85 does not override critical
+	if risks[0].RiskLevel != RiskCritical {
+		t.Errorf("expected critical risk (3 heuristics + threat intel), got %s", risks[0].RiskLevel)
+	}
+}
+
+func TestAssessConnectionRiskWithThreatIntel_NoMatch(t *testing.T) {
+	cfg := config.Config{
+		Thresholds: config.Thresholds{
+			MinIPConnections:      1,
+			MinProcessConnections: 1,
+			CriticalThreshold:     1,
+			HighThreshold:         1,
+		},
+		Excluded: config.Excluded{
+			PIDs:      []int{},
+			Processes: []string{},
+		},
+	}
+	tiDB := threatintel.NewThreatIntelDB()
+	tiDB.AddIOC(threatintel.IOC{
+		Indicator:     "10.0.0.99",
+		IndicatorType: "ipv4",
+		MalwareFamily: "TestC2",
+		Country:       "US",
+		Confidence:    90,
+		Tags:          []string{"test"},
+		Source:        "test",
+		Status:        "active",
+	})
+	conns := []Connection{
+		{
+			ProcessID:  9999,
+			Process:    "chrome.exe",
+			RemoteAddr: "8.8.8.8",
+			RemotePort: 443,
+			Protocol:   "TCP",
+			State:      "ESTABLISHED",
+			Direction:  "outbound",
+		},
+	}
+	risks := AssessConnectionRiskWithThreatIntel(conns, nil, &cfg, tiDB)
+	if len(risks) != 1 {
+		t.Fatalf("expected 1 risk, got %d", len(risks))
+	}
+	for _, reason := range risks[0].RiskReasons {
+		if strings.Contains(reason, "THREAT_INTEL") {
+			t.Errorf("expected no THREAT_INTEL reason for unmatched IP, got: %v", risks[0].RiskReasons)
+		}
+	}
+}
+
+func TestAssessConnectionRiskWithThreatIntel_NilDB(t *testing.T) {
+	cfg := config.Defaults()
+	conns := []Connection{
+		{
+			ProcessID:  1234,
+			Process:    "chrome.exe",
+			RemoteAddr: "203.0.113.50",
+			RemotePort: 4444,
+			Protocol:   "TCP",
+			State:      "ESTABLISHED",
+			Direction:  "outbound",
+		},
+	}
+	risks := AssessConnectionRiskWithThreatIntel(conns, nil, &cfg, nil)
+	if len(risks) != 1 {
+		t.Fatalf("expected 1 risk with nil DB, got %d", len(risks))
 	}
 }

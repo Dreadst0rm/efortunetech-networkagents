@@ -103,6 +103,7 @@ func GenerateMarkdown(data Data, filename string) error {
 	// External endpoints
 	sb.WriteString("\n## External Endpoints\n\n")
 	extMap := make(map[string][]int)
+	extDNS := make(map[string]string)
 	for _, c := range data.Connections {
 		if IsExternal(c) && c.Direction == "outbound" {
 			if _, ok := extMap[c.RemoteAddr]; !ok {
@@ -117,6 +118,9 @@ func GenerateMarkdown(data Data, filename string) error {
 			}
 			if !exists {
 				extMap[c.RemoteAddr] = append(extMap[c.RemoteAddr], c.RemotePort)
+			}
+			if c.DNSName != "" && extDNS[c.RemoteAddr] == "" {
+				extDNS[c.RemoteAddr] = c.DNSName
 			}
 		}
 	}
@@ -136,7 +140,8 @@ func GenerateMarkdown(data Data, filename string) error {
 				ports = append(ports, strconv.Itoa(p))
 			}
 			sort.Strings(ports)
-			sb.WriteString(fmt.Sprintf("| `%s` | `%s` | `%s` |\n", addr, "", strings.Join(ports, ", ")))
+			dnsName := extDNS[addr]
+			sb.WriteString(fmt.Sprintf("| `%s` | `%s` | `%s` |\n", addr, dnsName, strings.Join(ports, ", ")))
 		}
 	}
 

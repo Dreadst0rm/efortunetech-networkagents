@@ -277,3 +277,150 @@ func TestInfo_SystemSigned(t *testing.T) {
 		t.Errorf("Info.TokenElev = %d, want %d", info.TokenElev, Full)
 	}
 }
+
+func TestIsProcessElevated_System(t *testing.T) {
+	info := Info{PrivLevel: SYSTEM}
+	if !IsProcessElevated(info) {
+		t.Error("expected true for SYSTEM privilege")
+	}
+}
+
+func TestIsProcessElevated_Elevated(t *testing.T) {
+	info := Info{PrivLevel: Elevated}
+	if !IsProcessElevated(info) {
+		t.Error("expected true for Elevated privilege")
+	}
+}
+
+func TestIsProcessElevated_Standard(t *testing.T) {
+	info := Info{PrivLevel: Standard}
+	if IsProcessElevated(info) {
+		t.Error("expected false for Standard privilege")
+	}
+}
+
+func TestIsProcessUnsigned_Signed(t *testing.T) {
+	info := Info{ExePath: "C:\\app.exe", IsSigned: true}
+	if IsProcessUnsigned(info) {
+		t.Error("expected false for signed binary")
+	}
+}
+
+func TestIsProcessUnsigned_Unsigned(t *testing.T) {
+	info := Info{ExePath: "C:\\app.exe", IsSigned: false}
+	if !IsProcessUnsigned(info) {
+		t.Error("expected true for unsigned binary")
+	}
+}
+
+func TestIsProcessUnsigned_EmptyPath(t *testing.T) {
+	info := Info{ExePath: "", IsSigned: false}
+	if IsProcessUnsigned(info) {
+		t.Error("expected false for empty path")
+	}
+}
+
+func TestIsPrivEscalation_FullChain(t *testing.T) {
+	info := Info{
+		PrivLevel: Elevated,
+		IsSigned:  false,
+		ExePath:   "C:\\Users\\User\\AppData\\Local\\Temp\\evil.exe",
+	}
+	if !info.IsPrivEscalation() {
+		t.Error("expected true for full escalation chain")
+	}
+}
+
+func TestIsPrivEscalation_NoTempPath(t *testing.T) {
+	info := Info{
+		PrivLevel: Elevated,
+		IsSigned:  false,
+		ExePath:   "C:\\Program Files\\App\\app.exe",
+	}
+	if info.IsPrivEscalation() {
+		t.Error("expected false when no temp path")
+	}
+}
+
+func TestIsPrivEscalation_SignedBinary(t *testing.T) {
+	info := Info{
+		PrivLevel: Elevated,
+		IsSigned:  true,
+		ExePath:   "C:\\Users\\User\\AppData\\Local\\Temp\\signed.exe",
+	}
+	if info.IsPrivEscalation() {
+		t.Error("expected false for signed binary")
+	}
+}
+
+func TestIsPrivEscalation_StandardPriv(t *testing.T) {
+	info := Info{
+		PrivLevel: Standard,
+		IsSigned:  false,
+		ExePath:   "C:\\Users\\User\\AppData\\Local\\Temp\\app.exe",
+	}
+	if info.IsPrivEscalation() {
+		t.Error("expected false for standard privilege")
+	}
+}
+
+func TestIsPrivEscalation_SystemPriv(t *testing.T) {
+	info := Info{
+		PrivLevel: SYSTEM,
+		IsSigned:  false,
+		ExePath:   "C:\\Users\\Public\\Temp\\evil.exe",
+	}
+	if !info.IsPrivEscalation() {
+		t.Error("expected true for SYSTEM + unsigned + temp path")
+	}
+}
+
+func TestIsPrivEscalation_NoExePath(t *testing.T) {
+	info := Info{
+		PrivLevel: Elevated,
+		IsSigned:  false,
+		ExePath:   "",
+	}
+	if info.IsPrivEscalation() {
+		t.Error("expected false for empty exe path")
+	}
+}
+
+func TestIsSuspiciousPath_Matches(t *testing.T) {
+	tests := []struct {
+		path  string
+		match bool
+	}{
+		{"C:\\Users\\User\\AppData\\Local\\Temp\\evil.exe", true},
+		{"C:\\tmp\\evil.exe", true},
+		{"C:\\Users\\Public\\evil.exe", true},
+		{"C:\\Program Files\\App\\app.exe", false},
+		{"C:\\Windows\\System32\\svchost.exe", false},
+	}
+	for _, tt := range tests {
+		result := IsSuspiciousPath(tt.path)
+		if result != tt.match {
+			t.Errorf("IsSuspiciousPath(%q) = %v, want %v", tt.path, result, tt.match)
+		}
+	}
+}
+
+func TestIsSuspiciousPath_Empty(t *testing.T) {
+	if IsSuspiciousPath("") {
+		t.Error("expected false for empty path")
+	}
+}
+
+func TestIsSuspiciousPath_CaseInsensitive(t *testing.T) {
+	if !IsSuspiciousPath("C:\\TMP\\evil.exe") {
+		t.Error("expected true for uppercase TMP")
+	}
+}
+
+func TestUidToUsername_NonexistentFile(t *testing.T) {
+	uid := 99999
+	name := uidToUsername(uid)
+	if name == "" {
+		t.Error("expected non-empty username for nonexistent file")
+	}
+}
