@@ -1,6 +1,12 @@
 package threatintel
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -78,4 +84,246 @@ var KnownC2IPs = []IOC{
 	{Indicator: "admin-portal-verify.trade", IndicatorType: "domain", MalwareFamily: "Phishing", FirstSeen: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), LastSeen: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), Country: "FR", Confidence: 81, Tags: []string{"phishing", "admin"}, Source: "threatfox", Status: "active"},
 	{Indicator: "verify-account-login.info", IndicatorType: "domain", MalwareFamily: "Phishing", FirstSeen: time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC), LastSeen: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), Country: "CH", Confidence: 86, Tags: []string{"phishing", "account"}, Source: "threatfox", Status: "active"},
 	{Indicator: "secure-auth-portal.biz", IndicatorType: "domain", MalwareFamily: "Phishing", FirstSeen: time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC), LastSeen: time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC), Country: "US", Confidence: 83, Tags: []string{"phishing"}, Source: "threatfox", Status: "active"},
+}
+
+// ThreatFoxFeedClient fetches live C2 indicators from the ThreatFox API.
+// The ThreatFox API (https://threatfox-api.abuse.ch/) is free and does not require an API key
+// for basic usage. An optional API key can be provided for higher rate limits.
+type ThreatFoxFeedClient struct {
+	APIKey    string
+	Timeout   time.Duration
+	HTTPClient *http.Client
+}
+
+// NewThreatFoxFeedClient creates a client with sensible defaults.
+func NewThreatFoxFeedClient(apiKey string, timeout time.Duration) *ThreatFoxFeedClient {
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	return &ThreatFoxFeedClient{
+		APIKey: apiKey,
+		Timeout: timeout,
+		HTTPClient: &http.Client{
+			Timeout: timeout,
+		},
+	}
+}
+
+// FeedResponse is the ThreatFox API response envelope.
+type FeedResponse struct {
+	Count    int     `json:"query_stats"`
+	IOCs     []FeedIOC `json:"iocs"`
+	Msg      string  `json:"message"`
+	Success  bool    `json:"success"`
+}
+
+// FeedIOC is a single IOC entry from the ThreatFox API.
+type FeedIOC struct {
+	Indicator        string   `json:"indicator"`
+	IndicatorType    string   `json:"indicator_type"`
+	MalwareFamily    string   `json:"malware_family"`
+	FirstSeen        string   `json:"first_seen"`
+	LastSeen         string   `json:"last_seen"`
+	Country          string   `json:"country"`
+	Confidence       int      `json:"confidence_level"`
+	Tags             []string `json:"tags"`
+	Source           string   `json:"source"`
+	Status           string   `json:"status"`
+	Port             int      `json:"port"`
+	Protocol         string   `json:"protocol"`
+	Additional       string   `json:"additional_info"`
+}
+
+// FetchLiveIOCs retrieves active C2 indicators from ThreatFox and converts them
+// to the local IOC type. Returns only indicators with confidence >= 50.
+func (c *ThreatFoxFeedClient) FetchLiveIOCs() ([]IOC, error) {
+	url := "https://threatfox-api.abuse.ch/v1/search?query=ip_address&limit=5000&page=0"
+	if c.APIKey != "" {
+		url = "https://threatfox-api.abuse.ch/v1/search?query=ip_address&limit=5000&page=0&api_key=" + c.APIKey
+	}
+
+	resp, err := c.HTTPClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("fetch threatfox feed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("threatfox API error: status=%d body=%s", resp.StatusCode, string(body))
+	}
+
+	var feedResp FeedResponse
+	if err := json.NewDecoder(resp.Body).Decode(&feedResp); err != nil {
+		return nil, fmt.Errorf("decode threatfox response: %w", err)
+	}
+
+	if !feedResp.Success {
+		return nil, fmt.Errorf("threatfox API returned error: %s", feedResp.Msg)
+	}
+
+	iocs := make([]IOC, 0, len(feedResp.IOCs))
+	for _, f := range feedResp.IOCs {
+		if f.Confidence < 50 {
+			continue
+		}
+		firstSeen, _ := time.Parse("2006-01-02", f.FirstSeen)
+		lastSeen, _ := time.Parse("2006-01-02", f.LastSeen)
+
+		iocs = append(iocs, IOC{
+			Indicator:     f.Indicator,
+			IndicatorType: f.IndicatorType,
+			MalwareFamily: f.MalwareFamily,
+			FirstSeen:     firstSeen,
+			LastSeen:      lastSeen,
+			Country:       f.Country,
+			Confidence:    f.Confidence,
+			Tags:          f.Tags,
+			Source:        "threatfox_live",
+			Status:        f.Status,
+			Port:          f.Port,
+		})
+	}
+
+	return iocs, nil
+}
+
+// FeedCache holds a cached copy of live feed IOCs with its TTL timestamp.
+type FeedCache struct {
+	IOCs      []IOC
+	FetchedAt time.Time
+	TTL       time.Duration
+}
+
+// IsExpired returns true if the cache has expired.
+func (fc *FeedCache) IsExpired() bool {
+	return time.Since(fc.FetchedAt) > fc.TTL
+}
+
+// FeedCacheManager manages the cached threat intel feed and periodic refresh.
+type FeedCacheManager struct {
+	client *ThreatFoxFeedClient
+	cache  *FeedCache
+	mu     sync.Mutex
+	ttl    time.Duration
+}
+
+// NewFeedCacheManager creates a manager with the given client and cache TTL.
+func NewFeedCacheManager(client *ThreatFoxFeedClient, ttl time.Duration) *FeedCacheManager {
+	if ttl <= 0 {
+		ttl = 1 * time.Hour
+	}
+	return &FeedCacheManager{
+		client: client,
+		ttl:    ttl,
+		cache:  nil,
+	}
+}
+
+// GetIOCs returns cached IOCs, fetching fresh data if the cache is expired.
+func (m *FeedCacheManager) GetIOCs() ([]IOC, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.cache != nil && !m.cache.IsExpired() {
+		return m.cache.IOCs, nil
+	}
+
+	iocs, err := m.client.FetchLiveIOCs()
+	if err != nil {
+		// Return stale cache on error if available.
+		if m.cache != nil {
+			return m.cache.IOCs, nil
+		}
+		return nil, err
+	}
+
+	m.cache = &FeedCache{
+		IOCs:      iocs,
+		FetchedAt: time.Now(),
+		TTL:       m.ttl,
+	}
+
+	return iocs, nil
+}
+
+// Refresh forces a cache refresh regardless of TTL.
+func (m *FeedCacheManager) Refresh() ([]IOC, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	iocs, err := m.client.FetchLiveIOCs()
+	if err != nil {
+		if m.cache != nil {
+			return m.cache.IOCs, nil
+		}
+		return nil, err
+	}
+
+	m.cache = &FeedCache{
+		IOCs:      iocs,
+		FetchedAt: time.Now(),
+		TTL:       m.ttl,
+	}
+
+	return iocs, nil
+}
+
+// FeedURLClient fetches IOCs from a custom JSON feed URL.
+// The feed must be a JSON array of IOC objects with the same structure as IOC.
+type FeedURLClient struct {
+	HTTPClient *http.Client
+	Timeout    time.Duration
+}
+
+// NewFeedURLClient creates a URL feed client.
+func NewFeedURLClient(timeout time.Duration) *FeedURLClient {
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	return &FeedURLClient{
+		HTTPClient: &http.Client{Timeout: timeout},
+		Timeout:    timeout,
+	}
+}
+
+// FetchURLFeed fetches IOCs from a JSON feed URL.
+func (c *FeedURLClient) FetchURLFeed(url string) ([]IOC, error) {
+	resp, err := c.HTTPClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("fetch feed URL %s: %w", url, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("feed URL error: status=%d", resp.StatusCode)
+	}
+
+	var iocs []IOC
+	if err := json.NewDecoder(resp.Body).Decode(&iocs); err != nil {
+		return nil, fmt.Errorf("decode feed URL %s: %w", url, err)
+	}
+
+	// Tag with source URL.
+	source := cleanSourceURL(url)
+	for i := range iocs {
+		if iocs[i].Source == "" {
+			iocs[i].Source = source
+		}
+	}
+
+	return iocs, nil
+}
+
+// cleanSourceURL extracts a short source name from a URL.
+func cleanSourceURL(raw string) string {
+	s := strings.TrimPrefix(raw, "https://")
+	s = strings.TrimPrefix(s, "http://")
+	idx := strings.Index(s, "/")
+	if idx > 0 {
+		s = s[:idx]
+	}
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, ".", "_")
+	return s
 }

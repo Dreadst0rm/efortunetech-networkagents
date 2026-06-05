@@ -188,13 +188,19 @@ func SuspiciousProcessNamesList() map[string]struct{} {
 	return suspiciousProcsForOS()
 }
 
-func IsSuspiciousProcess(name string) bool {
-	for n := range SuspiciousProcessNamesList() {
-		if strings.ToLower(n) == strings.ToLower(name) {
-			return true
-		}
+// suspiciousProcsLower is a pre-computed lowercase map for O(1) case-insensitive lookups.
+var suspiciousProcsLower map[string]struct{}
+
+func init() {
+	suspiciousProcsLower = make(map[string]struct{})
+	for n := range suspiciousProcsForOS() {
+		suspiciousProcsLower[strings.ToLower(n)] = struct{}{}
 	}
-	return false
+}
+
+func IsSuspiciousProcess(name string) bool {
+	_, ok := suspiciousProcsLower[strings.ToLower(name)]
+	return ok
 }
 
 // CommonReverseProxyPorts are ports commonly used by C2, proxies, or malware.
@@ -237,42 +243,49 @@ func AssessConnectionRisk(conns []Connection, secInfo map[int]processinfo.Info, 
 		ipCount[c.RemoteAddr]++
 	}
 
-	var risks []ConnectionRisk
+	// Pre-allocate with capacity to avoid reallocation.
+	risks := make([]ConnectionRisk, 0, len(conns))
 	for _, c := range conns {
 		if c.Direction != "outbound" {
 			continue
 		}
-		var (
-			risk    RiskLevel
-			reasons []string
-		)
 
-		// Whitelisted IPs skip suspicious port and process heuristics
+		// Whitelisted IPs skip suspicious port and process heuristics.
 		isWhitelisted := cfg.IsWhitelistedIP(c.RemoteAddr)
+
+		// Use a short buffer on-stack for reasons to avoid heap allocation
+		// when no heuristics fire. Max 6 heuristics.
+		var reasons [6]string
+		count := 0
 
 		// --- 1. Suspicious port detection ---
 		if !isWhitelisted && IsSuspiciousPort(c.RemotePort) {
-			reasons = append(reasons, fmt.Sprintf("suspicious port %d", c.RemotePort))
+			reasons[count] = "suspicious port " + itoa(c.RemotePort)
+			count++
 		}
 
 		// --- 2. Process name heuristic ---
 		if !isWhitelisted && IsSuspiciousProcess(c.Process) {
-			reasons = append(reasons, fmt.Sprintf("suspicious process: %s", c.Process))
+			reasons[count] = "suspicious process: " + c.Process
+			count++
 		}
 
 		// --- 3. Transition-state heuristic ---
 		if IsTransitionState(c.State) {
-			reasons = append(reasons, fmt.Sprintf("connection state: %s", c.State))
+			reasons[count] = "connection state: " + c.State
+			count++
 		}
 
 		// --- 4. Per-IP connection count heuristic ---
-		if count := ipCount[c.RemoteAddr]; count >= cfg.Thresholds.MinIPConnections {
-			reasons = append(reasons, fmt.Sprintf("high connection count to %s (%d)", c.RemoteAddr, count))
+		if ipCount[c.RemoteAddr] >= cfg.Thresholds.MinIPConnections {
+			reasons[count] = "high connection count to " + c.RemoteAddr + " (" + itoa(ipCount[c.RemoteAddr]) + ")"
+			count++
 		}
 
 		// --- 5. Per-process connection count heuristic ---
-		if count := procCount[c.Process]; count >= cfg.Thresholds.MinProcessConnections {
-			reasons = append(reasons, fmt.Sprintf("high outbound connection count for %s (%d)", c.Process, count))
+		if procCount[c.Process] >= cfg.Thresholds.MinProcessConnections {
+			reasons[count] = "high outbound connection count for " + c.Process + " (" + itoa(procCount[c.Process]) + ")"
+			count++
 		}
 
 		// --- 6. Privilege escalation chain detection ---
@@ -280,38 +293,61 @@ func AssessConnectionRisk(conns []Connection, secInfo map[int]processinfo.Info, 
 			isElevated := info.PrivLevel == processinfo.Elevated || info.PrivLevel == processinfo.SYSTEM
 			isTempPath := processinfo.IsSuspiciousPath(info.ExePath)
 			if isElevated && !info.IsSigned && isTempPath {
-				reasons = append(reasons, "PRIVILEGE ESCALATION: elevated + unsigned + temp path")
+				reasons[count] = "PRIVILEGE ESCALATION: elevated + unsigned + temp path"
+				count++
 			} else if isElevated && !info.IsSigned {
-				reasons = append(reasons, fmt.Sprintf("elevated + unsigned binary: %s", info.ExePath))
+				reasons[count] = "elevated + unsigned binary: " + info.ExePath
+				count++
 			} else if isElevated && isTempPath {
-				reasons = append(reasons, fmt.Sprintf("elevated process from temp path: %s", info.ExePath))
+				reasons[count] = "elevated process from temp path: " + info.ExePath
+				count++
 			}
 		}
 
 		// --- Assign risk level ---
 		switch {
-		case len(reasons) >= cfg.Thresholds.CriticalThreshold:
-			risk = RiskCritical
-		case len(reasons) >= cfg.Thresholds.HighThreshold:
-			risk = RiskHigh
-		case len(reasons) == 1:
-			risk = RiskMedium
+		case count >= cfg.Thresholds.CriticalThreshold:
+			risks = append(risks, ConnectionRisk{
+				Connection:    c,
+				RiskLevel:     RiskCritical,
+				RiskReasons:   reasons[:count],
+				IsSuspicious:  true,
+				IsWhitelisted: isWhitelisted,
+			})
+		case count >= cfg.Thresholds.HighThreshold:
+			risks = append(risks, ConnectionRisk{
+				Connection:    c,
+				RiskLevel:     RiskHigh,
+				RiskReasons:   reasons[:count],
+				IsSuspicious:  true,
+				IsWhitelisted: isWhitelisted,
+			})
+		case count == 1:
+			risks = append(risks, ConnectionRisk{
+				Connection:    c,
+				RiskLevel:     RiskMedium,
+				RiskReasons:   reasons[:count],
+				IsSuspicious:  true,
+				IsWhitelisted: isWhitelisted,
+			})
 		}
-
-		// Only flag as suspicious if any heuristic triggered.
-		isSuspicious := risk != RiskLow
-		if !isSuspicious {
-			continue
-		}
-
-		risks = append(risks, ConnectionRisk{
-			Connection:    c,
-			RiskLevel:     risk,
-			RiskReasons:   reasons,
-			IsSuspicious:  isSuspicious,
-			IsWhitelisted: isWhitelisted,
-		})
+		// count == 0 → no heuristic triggered, skip.
 	}
 
 	return risks
+}
+
+// itoa converts an int to a string without allocating.
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf [20]byte
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
 }

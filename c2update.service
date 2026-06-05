@@ -1,0 +1,18 @@
+[Unit]
+Description=C2IntelFeeds daily indicator update
+Documentation=Fetches C2 indicators from https://github.com/drb-ra/C2IntelFeeds
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=netadmin
+WorkingDirectory=/opt/networksentinel/c2update
+ExecStart=/opt/networksentinel/c2update/c2update -output /opt/networksentinel/c2update/c2intel_feeds.json
+StandardOutput=journal
+StandardError=journal
+# Run at most one instance at a time
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

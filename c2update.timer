@@ -1,0 +1,12 @@
+[Unit]
+Description=Run C2IntelFeeds update every 6 hours
+Documentation=Fetches C2 indicators from https://github.com/drb-ra/C2IntelFeeds
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=6h
+RandomizedSecurrence=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

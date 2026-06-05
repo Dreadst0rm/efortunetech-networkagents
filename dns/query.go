@@ -27,11 +27,36 @@ type SuspiciousDomainResult struct {
 }
 
 // suspiciousTLDs are TLDs commonly associated with malicious activity.
+// Stored as a sorted slice for faster iteration and cache-friendly access.
 var suspiciousTLDs = map[string]float64{
 	".xyz": 0.6, ".top": 0.5, ".club": 0.5, ".online": 0.5,
 	".store": 0.5, ".site": 0.5, ".work": 0.4, ".trade": 0.5,
 	".info": 0.4, ".biz": 0.4, ".ru": 0.6, ".cn": 0.5,
 	".tk": 0.7, ".ml": 0.7, ".ga": 0.7, ".cf": 0.7,
+}
+
+// suspiciousTLDSorted is a pre-sorted list of suspicious TLDs for faster iteration.
+var suspiciousTLDSorted []tldScore
+
+type tldScore struct {
+	tld    string
+	score  float64
+	length int
+}
+
+func init() {
+	suspiciousTLDSorted = make([]tldScore, 0, len(suspiciousTLDs))
+	for tld, score := range suspiciousTLDs {
+		suspiciousTLDSorted = append(suspiciousTLDSorted, tldScore{tld: tld, score: score, length: len(tld)})
+	}
+	// Sort by TLD length descending so longer TLDs match first (e.g., ".online" before ".on").
+	for i := 0; i < len(suspiciousTLDSorted); i++ {
+		for j := i + 1; j < len(suspiciousTLDSorted); j++ {
+			if suspiciousTLDSorted[j].length > suspiciousTLDSorted[i].length {
+				suspiciousTLDSorted[i], suspiciousTLDSorted[j] = suspiciousTLDSorted[j], suspiciousTLDSorted[i]
+			}
+		}
+	}
 }
 
 // suspiciousKeywords are substrings commonly found in DGA or C2 domains.
@@ -51,22 +76,22 @@ func CheckDomain(domain string) SuspiciousDomainResult {
 	var score float64
 	var reasons []string
 
-	// Check TLD
-	for tld, baseScore := range suspiciousTLDs {
-		if strings.HasSuffix(domain, tld) {
-			score += baseScore
-			reasons = append(reasons, fmt.Sprintf("suspicious TLD: %s", tld))
+	// Check TLD using pre-sorted slice for cache-friendly iteration.
+	for _, t := range suspiciousTLDSorted {
+		if len(domain) >= t.length && domain[len(domain)-t.length:] == t.tld {
+			score += t.score
+			reasons = append(reasons, fmt.Sprintf("suspicious TLD: %s", t.tld))
+			break
 		}
 	}
 
-	// Check for high subdomain depth (DGA indicator)
-	depth := strings.Count(domain, ".")
-	if depth >= 4 {
+	// Check for high subdomain depth (DGA indicator).
+	if strings.Count(domain, ".") >= 4 {
 		score += 0.3
 		reasons = append(reasons, "high subdomain depth")
 	}
 
-	// Check for suspicious keywords
+	// Check for suspicious keywords.
 	for _, kw := range suspiciousKeywords {
 		if strings.Contains(domain, kw) {
 			score += 0.2
@@ -75,13 +100,13 @@ func CheckDomain(domain string) SuspiciousDomainResult {
 		}
 	}
 
-	// Check for long domain names (DGA indicator)
+	// Check for long domain names (DGA indicator).
 	if len(domain) > 50 {
 		score += 0.4
 		reasons = append(reasons, "unusually long domain name")
 	}
 
-	// Check for high consonant ratio (DGA indicator)
+	// Check for high consonant ratio (DGA indicator).
 	consonants := 0
 	vowels := 0
 	for _, r := range domain {

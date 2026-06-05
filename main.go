@@ -86,18 +86,12 @@ func runScan(cfg *config.Config, outputDir string) {
 	fmt.Printf("  Found %d processes\n", len(procs))
 	fmt.Printf("  Found %d network connections\n", len(conns))
 
-	// Perform DNS reverse lookup on outbound connections
-	dnsCount := 0
-	for i := range conns {
-		c := &conns[i]
-		if c.Direction == "outbound" && c.RemoteAddr != "" {
-			dnsName := dns.LookupDomain(c.RemoteAddr)
-			if dnsName != "" {
-				c.DNSName = dnsName
-				dnsCount++
-			}
-		}
+	// Perform parallel DNS reverse lookups on outbound connections.
+	dnsConcurrency := cfg.DNS.LookupConcurrency
+	if dnsConcurrency <= 0 {
+		dnsConcurrency = 10
 	}
+	dnsCount := dns.ResolveConnectionsDNS(conns, dnsConcurrency)
 	if dnsCount > 0 {
 		fmt.Printf("  DNS lookups resolved: %d\n", dnsCount)
 	}
@@ -140,6 +134,39 @@ func runScan(cfg *config.Config, outputDir string) {
 			tiDB.AddIOCs(iocs)
 			fmt.Printf("  Total threat intel: %d indicators\n", tiDB.Count())
 		}
+	}
+
+	// Fetch live threat intel feeds if enabled.
+	if cfg.ThreatIntel.Enabled {
+		timeout := time.Duration(cfg.ThreatIntel.Timeout) * time.Second
+		feedClient := threatintel.NewThreatFoxFeedClient(cfg.ThreatIntel.APIKey, timeout)
+		cacheMgr := threatintel.NewFeedCacheManager(feedClient, 1*time.Hour)
+
+		fmt.Println("[ThreatIntel] Fetching live threat intel feed...")
+		liveIOCs, err := cacheMgr.GetIOCs()
+		if err != nil {
+			log.Printf("Warning: live threat intel fetch failed: %v", err)
+		} else if len(liveIOCs) > 0 {
+			fmt.Printf("  + Live feed: %d indicators\n", len(liveIOCs))
+			tiDB.AddIOCs(liveIOCs)
+			fmt.Printf("  Total threat intel: %d indicators\n", tiDB.Count())
+		} else {
+			fmt.Println("  + Live feed: 0 indicators (no active matches)")
+		}
+	}
+
+	// Fetch C2IntelFeeds CSV data (Cobalt Strike C2 indicators).
+	fmt.Println("[ThreatIntel] Fetching C2IntelFeeds CSV data...")
+	c2Client := threatintel.NewC2IntelFeedsClient(time.Duration(cfg.ThreatIntel.Timeout) * time.Second)
+	c2IOCs, err := c2Client.FetchAllIOCs()
+	if err != nil {
+		log.Printf("Warning: C2IntelFeeds fetch failed: %v", err)
+	} else if len(c2IOCs) > 0 {
+		fmt.Printf("  + C2IntelFeeds: %d indicators\n", len(c2IOCs))
+		tiDB.AddIOCs(c2IOCs)
+		fmt.Printf("  Total threat intel: %d indicators\n", tiDB.Count())
+	} else {
+		fmt.Println("  + C2IntelFeeds: 0 indicators (no active matches)")
 	}
 
 	risks := scanner.AssessConnectionRiskWithThreatIntel(conns, secInfo, cfg, tiDB)

@@ -25,12 +25,27 @@ main.go
   │                          ├─ filter excluded PIDs/processes
   │                          └─ processinfo.GetProcessInfo(pid)  (security context)
   │
-  ├─ DNS Resolution       → dns.LookupDomain(remoteAddr)
+  ├─ DNS Resolution       → dns.ResolveConnectionsDNS(conns, concurrency)
+  │                          ├─ Parallel worker pool (cfg.DNS.LookupConcurrency, default 10)
+  │                          ├─ Each lookup: 2s timeout via context.WithTimeout
+  │                          └─ Deduplicates addresses before lookups
   │
   ├─ [3/5] Baseline Diff  → baseline.Load() + baseline.Diff()
   │
   ├─ [4/5] Risk Analysis  → scanner.AssessConnectionRisk()
   │                          └─ threatintel.AssessConnectionRiskWithThreatIntel()
+  │
+  ├─ Threat Intel Aggregation (step [4/5])
+  │  ├─ Built-in indicators: threatintel.KnownC2IPs (33 indicators)
+  │  ├─ External feed file: -feed flag → threatintel.GetFeedIOCs()
+  │  ├─ Live ThreatFox feed: cfg.ThreatIntel.Enabled → NewThreatFoxFeedClient()
+  │  │   └─ HTTP GET https://threatfox-api.abuse.ch/v1/search (optional API key)
+  │  │   └─ FeedCacheManager with 1h TTL, returns stale cache on failure
+  │  └─ C2IntelFeeds CSV: NewC2IntelFeedsClient().FetchAllIOCs()
+  │      └─ Fetches IPC2s.csv, IPPortC2s.csv, domainC2s.csv from GitHub
+  │      └─ ~180 IPs + ~180 IP+port + ~70 domains = ~590 indicators
+  │      └─ Standalone c2update binary also fetches same feeds for scheduled updates
+  │          └─ Consumed via -feed flag: networksentinel -feed c2intel_feeds.json
   │
   └─ [5/5] Report         → report.GenerateMarkdown()
                               report.GenerateJSON()
@@ -66,11 +81,15 @@ main.go
 - `Load(filename)` reads a JSON config file, merges it with defaults
 - Validates thresholds (no negatives, critical >= high)
 - Validates whitelist IPs using `net.ParseIP()` — clears invalid entries
+- Builds an in-memory `ipIndex` map for O(1) whitelist lookups
+- Validates DNS concurrency (default 10) and threat intel timeout (default 10s)
 - Provides helper methods: `IsExcludedPID()`, `IsExcludedProcess()`, `IsWhitelistedIP()`, `GetWhitelistComment()`
 
 **Key types:**
-- `Config` — top-level config (thresholds, exclusions, whitelist, DNS log, alerting)
+- `Config` — top-level config (thresholds, exclusions, whitelist, DNS, alerting, threat intel)
 - `Thresholds` — numeric thresholds for heuristics
+- `DNSConfig` — DNS lookup concurrency setting (`lookup_concurrency`, default 10)
+- `ThreatIntelConfig` — live feed settings: `Enabled`, `RefreshIntvl`, `APIKey`, `Timeout`, `FeedURL`
 - `WhitelistedIP` — IP + comment pair
 
 **Called by:** `main.go` at the very start. Passed throughout the pipeline to `scanner.ScanAll()`, `scanner.AssessConnectionRisk()`, and `report` generation.
@@ -98,6 +117,7 @@ main.go
   5. High outbound connection count per process (>= `MinProcessConnections`)
   6. Privilege escalation chain (elevated + unsigned + temp path)
 
+  Uses an on-stack `[6]string` array for reasons (zero heap allocation when no heuristics fire).
   Assigns risk level: Medium (1 reason), High (>= `HighThreshold`), Critical (>= `CriticalThreshold`).
 
 - **`AssessConnectionRiskWithThreatIntel()`** — Wraps `AssessConnectionRisk()`, then enriches results with threat intel matches (boosts risk level based on IOC confidence).
@@ -105,6 +125,7 @@ main.go
 - **`IsPrivateIP()`, `IsExternalIP()`** — IP classification helpers.
 
 - **`IsSuspiciousPort()`, `IsTransitionState()`, `IsSuspiciousProcess()`** — Individual heuristic checks.
+  - `IsSuspiciousProcess()` uses a pre-computed lowercase map (`suspiciousProcsLower`) for O(1) lookups.
 
 **Key types:**
 - `Connection` — a single network connection (PID, process name, local/remote addr:port, protocol, state, direction, DNS name)
@@ -253,7 +274,31 @@ main.go
 
 ---
 
-### 13. `threatintel/loader.go` — External Feed Loading
+### 13. `threatintel/c2intelfeeds.go` — C2IntelFeeds CSV Parser
+
+**Purpose:** Fetch and parse C2 indicators from the [drb-ra/C2IntelFeeds](https://github.com/drb-ra/C2IntelFeeds) CSV repository.
+
+**What it does:**
+- `C2IntelFeedsClient` — HTTP client for fetching CSV feeds from GitHub raw URLs
+- `FetchAllIOCs()` — Fetches all 4 feeds concurrently: `IPC2s.csv`, `IPPortC2s.csv`, `domainC2s.csv`, `IPC2s-30day.csv`
+- `Fetch30DayIOCs()` — Fetches only the 30-day active IP list
+- `parseIPFeed()`, `parseIPPortFeed()`, `parseDomainFeed()` — CSV parsers with `#` comment header support
+- `detectMalwareFamily(desc)` — Maps CSV descriptions to malware family names (CobaltStrike, C2Fronting, etc.)
+- Constants: `C2IntelFeedsURL`, `C2IntelFeeds30DayURL`, `C2IntelFeedsIPPortURL`, `C2IntelFeedsDomainURL`
+
+**Feeds fetched:**
+| Feed | URL | Format | Count |
+|---|---|---|---|
+| IPC2s.csv | Full IP C2 list | `#ip,ioc` | ~180 Cobalt Strike IPs |
+| IPC2s-30day.csv | 30-day active | `#ip,ioc` | Recently active IPs |
+| IPPortC2s.csv | IP+port C2 | `#ip,port,ioc` | IPs with C2 ports (443, 8080, 4444, etc.) |
+| domainC2s.csv | Domain C2 | `#domain,ioc` | ~70 Cobalt Strike domains |
+
+**Called by:** `main.go` at step [4/5] via `NewC2IntelFeedsClient().FetchAllIOCs()`. Merged into `tiDB` alongside built-in and live feeds.
+
+---
+
+### 14. `threatintel/loader.go` — External Feed Loading
 
 **Purpose:** Load C2 indicators from external JSON feed files.
 
@@ -267,25 +312,28 @@ main.go
 
 ---
 
-### 14. `dns/lookup.go` — DNS Forward Lookup
+### 15. `dns/lookup.go` — DNS Forward Lookup
 
 **Purpose:** Resolve IP addresses to domain names via reverse DNS lookup.
 
 **What it does:**
-- `LookupDomain(addr)` — Forward DNS lookup via `net.Resolver` with 2s timeout, resolves an IP address to a domain name
+- `LookupDomain(addr)` — Single reverse DNS lookup via `net.Resolver` with 2s timeout, resolves an IP address to a domain name
+- `LookupDomainsParallel(addrs []string, concurrency int) []LookupResult` — Fan-outs N reverse DNS lookups concurrently via a worker pool. Each lookup has a 2s timeout. Deduplicates addresses. Results preserve input order.
+- `ResolveConnectionsDNS(conns []scanner.Connection, concurrency int) int` — Integrates with scanner.Connection: collects unique outbound addresses, calls `LookupDomainsParallel`, populates `c.DNSName` for resolved connections. Returns count of resolved domains.
 - `CheckDomain(domain)` — Analyzes a domain for suspicious indicators. Checks:
-  - Suspicious TLDs (`.tk`, `.xyz`, `.top`, `.online`, `.club`, `.store`, `.site`, `.work`, `.trade`, `.info`, `.biz`)
+  - Suspicious TLDs (pre-sorted `suspiciousTLDSorted` slice for cache-friendly iteration)
   - Keyword matches (login, verify, secure, auth, account, signin, banking, payment, crypto, wallet, admin)
   - Returns confidence score (0-100) and reason string
 
 **Key types:**
+- `LookupResult` — addr + resolved name pair
 - `SuspiciousDomainResult` — domain, confidence, isSuspicious, reason
 
-**Called by:** `main.go` at step [2/5] for DNS resolution on outbound connections.
+**Called by:** `main.go` at step [2/5] via `dns.ResolveConnectionsDNS(conns, cfg.DNS.LookupConcurrency)`. Uses concurrency from `cfg.DNS.LookupConcurrency` (default 10).
 
 ---
 
-### 15. `dns/query_windows.go` / `query_linux.go` / `query_darwin.go` — Platform-Specific DNS Capture
+### 16. `dns/query_windows.go` / `query_linux.go` / `query_darwin.go` — Platform-Specific DNS Capture
 
 **Purpose:** Capture DNS cache entries from OS-specific sources.
 
@@ -298,7 +346,7 @@ main.go
 
 ---
 
-### 16. `dns/query.go` — DNS Query Types & Utilities
+### 17. `dns/query.go` — DNS Query Types & Utilities
 
 **Purpose:** Define types and utilities for DNS query logging.
 
@@ -311,7 +359,7 @@ main.go
 
 ---
 
-### 17. `baseline/baseline.go` — Snapshot Diffing
+### 18. `baseline/baseline.go` — Snapshot Diffing
 
 **Purpose:** Save connection snapshots and compare against previous baselines.
 
@@ -332,7 +380,7 @@ main.go
 
 ---
 
-### 18. `report/report.go` — Report Generation
+### 19. `report/report.go` — Report Generation
 
 **Purpose:** Generate Markdown, JSON, and CSV reports from scan data.
 
@@ -368,7 +416,7 @@ main.go
 
 ---
 
-### 19. `alerting/alerting.go` — Alert Delivery
+### 20. `alerting/alerting.go` — Alert Delivery
 
 **Purpose:** Send alerts to configured notifiers (webhook, syslog/stdout).
 
@@ -383,7 +431,7 @@ main.go
 
 ---
 
-### 20. `version/version.go` — Version String
+### 21. `version/version.go` — Version String
 
 **Purpose:** Provides the application version string.
 
@@ -391,6 +439,57 @@ main.go
 - `Version` constant — e.g., `"1.0.0"`
 
 **Called by:** `main.go` for banner display and report metadata.
+
+---
+
+### 22. `threatintel/feeds.go` — Live Feed Clients
+
+**Purpose:** HTTP-based fetchers for live threat intelligence from external sources.
+
+**What it does:**
+- `ThreatFoxFeedClient` — Fetches from ThreatFox API (`https://threatfox-api.abuse.ch/v1/search`), supports optional API key for higher rate limits
+- `FeedCacheManager` — In-memory cache with configurable TTL (default 1h), returns stale cache on fetch errors
+- `FeedURLClient` — Fetches from custom JSON feed URLs, auto-tags IOCs with source URL
+- `cleanSourceURL()` — Extracts source name from URL for IOC metadata
+
+**Called by:** `main.go` at step [4/5] when `cfg.ThreatIntel.Enabled` is true. Merged into `tiDB` alongside built-in and C2IntelFeeds indicators.
+
+---
+
+### 23. `c2update/` — Standalone C2IntelFeeds Updater
+
+**Purpose:** Independent binary for fetching and updating C2IntelFeeds CSV data. Can be scheduled via cron, systemd timer, or Windows Task Scheduler.
+
+**What it does:**
+- `c2update/main.go` — Standalone binary that fetches C2 indicators from the C2IntelFeeds CSV repository and writes them to a JSON feed file
+- `c2update/go.mod` — Separate Go module using `replace` directive to pull in `networksentinel/threatintel` types
+- Supports flags: `-output`, `-30day`, `-domain`, `-ipport`, `-timeout`
+- Deduplicates indicators, wraps in metadata envelope with timestamp and count
+- Output format: JSON envelope with `format`, `source`, `generated_at`, `indicator_count`, `indicators`
+- Builds to `c2update.exe` (Windows) or `c2update` (Linux)
+
+**Wrapper scripts:**
+- `c2update.sh` — Linux/macOS wrapper with logging, cron-compatible
+- `c2update.ps1` — Windows PowerShell wrapper, Task Scheduler-compatible
+- `c2update.service` / `c2update.timer` — systemd integration (6h interval with 30min jitter)
+
+**Usage:**
+```bash
+# Manual update
+./c2update.sh -output /path/to/c2intel_feeds.json
+
+# Systemd timer
+sudo cp c2update.timer c2update.service /etc/systemd/system/
+sudo systemctl enable --now c2update.timer
+
+# Scheduled via cron (Linux)
+0 */6 * * * /path/to/c2update.sh -output /path/to/c2intel_feeds.json >> /var/log/c2update.log 2>&1
+
+# Scheduled via Task Scheduler (Windows)
+schtasks /create /tn "C2IntelFeedsUpdate" /tr "powershell -ExecutionPolicy Bypass -File c2update.ps1" /sc daily /st 02:00
+```
+
+**Consumed by:** `networksentinel` via `-feed c2intel_feeds.json` flag, or the `c2intel_feeds.json` can be referenced by `threatintel.GetFeedIOCs()`.
 
 ---
 
@@ -415,8 +514,15 @@ main.go
 |      -> determineDirection()                                     |
 |      -> filter excluded                                          |
 |      -> processinfo.GetProcessInfo(pid)                          |
-|    DNS: dns.LookupDomain(remoteAddr)                             |
+|    DNS: dns.ResolveConnectionsDNS(conns, concurrency)           |
+|      -> Parallel worker pool (cfg.DNS.LookupConcurrency default 10) |
+|      -> Deduplicates addresses, 2s timeout per lookup            |
 |    [3/5] baseline.Load() + baseline.Diff()                       |
+|    [4/5] Threat Intel Aggregation                               |
+|      -> Built-in: threatintel.KnownC2IPs (33 indicators)         |
+|      -> External file: -feed flag -> GetFeedIOCs()               |
+|      -> Live ThreatFox: cfg.ThreatIntel.Enabled -> FeedCacheMgr  |
+|      -> C2IntelFeeds CSV: FetchAllIOCs() (~590 indicators)       |
 |    [4/5] scanner.AssessConnectionRisk()                          |
 |      -> 6 heuristics per connection                              |
 |      -> threatintel.LookupConnection()                           |
@@ -432,18 +538,18 @@ main.go
 
 ```
 main.go
-  +-- config (Load)
+  +-- config (Load, DNSConfig, ThreatIntelConfig)
   +-- systeminfo (Gather)
   +-- scanner (ScanAll, AssessConnectionRisk, AssessConnectionRiskWithThreatIntel)
-  +-- dns (LookupDomain, CaptureDNSQueries, CheckDomain, SaveCaptureResult)
-  +-- threatintel (NewThreatIntelDB, AddIOCs, GetFeedIOCs)
+  +-- dns (ResolveConnectionsDNS, LookupDomain, CaptureDNSQueries, CheckDomain, SaveCaptureResult)
+  +-- threatintel (NewThreatIntelDB, AddIOCs, GetFeedIOCs, NewThreatFoxFeedClient, NewFeedCacheManager, NewC2IntelFeedsClient)
   +-- baseline (Load, Diff, Save)
   +-- report (GenerateMarkdown, GenerateJSON, GenerateCSV, IsSuspicious, IsExternal, IsLocal, Summarize)
   +-- alerting (NewRegistry, AddNotifier, Send)
   +-- version (Version)
 
 scanner
-  +-- config (IsExcludedPID, IsExcludedProcess, IsWhitelistedIP, Thresholds)
+  +-- config (IsExcludedPID, IsExcludedProcess, IsWhitelistedIP, Thresholds, DNSConfig)
   +-- processinfo (GetProcessInfo, Info, Elevated, SYSTEM, IsSuspiciousPath)
   +-- threatintel (ThreatIntelDB, LookupConnection)
 
@@ -458,6 +564,7 @@ processinfo
   +-- (no internal dependencies)
 
 dns
+  +-- scanner (Connection) — ResolveConnectionsDNS imports scanner.Connection
   +-- (platform-specific: uses exec.Command for OS tools)
 
 alerting
@@ -477,6 +584,9 @@ systeminfo
 
 version
   +-- (no internal dependencies)
+
+c2update (standalone binary)
+  +-- (no internal dependencies — self-contained fetch + JSON output)
 ```
 
 ---
@@ -485,10 +595,16 @@ version
 
 1. **Platform abstraction via build tags** — Each OS has its own implementation file (`_windows.go`, `_linux.go`, `_darwin.go`). The shared code in `scanner.go` and `processinfo.go` compiles across all platforms.
 
-2. **Dependency injection** — `config.Config` is passed throughout the pipeline, allowing all modules to access thresholds, exclusions, and whitelist without global state.
+2. **Dependency injection** — `config.Config` is passed throughout the pipeline, allowing all modules to access thresholds, exclusions, whitelist, DNS config, and threat intel settings without global state.
 
-3. **Chain of heuristics** — `AssessConnectionRisk()` applies 6 independent checks, then aggregates reasons to determine risk level. Each heuristic is a pure function that can be tested independently.
+3. **Chain of heuristics** — `AssessConnectionRisk()` applies 6 independent checks, then aggregates reasons to determine risk level. Each heuristic is a pure function that can be tested independently. Uses on-stack `[6]string` array for zero-alloc reasons.
 
 4. **Data bundling** — `report.Data` aggregates all scan results into a single struct, making it easy to pass to report generators without complex parameter lists.
 
 5. **Interface-based alerting** — `Notifier` interface allows adding new alert delivery mechanisms (Slack, PagerDuty, etc.) without modifying existing code.
+
+6. **Parallel worker pools** — `dns.LookupDomainsParallel()` uses a channel-based worker pool to fan-out concurrent DNS lookups. Each lookup has a 2s timeout. Deduplication avoids redundant work.
+
+7. **Cached feed clients** — `FeedCacheManager` provides TTL-based caching for live threat intel feeds. Returns stale cache on fetch failure, preventing scan failure from network issues.
+
+8. **Standalone updater** — `c2update/` is a separate Go module with its own `go.mod`, built independently from `networksentinel`. Consumed via `-feed` flag. Enables scheduled updates without modifying the main binary.

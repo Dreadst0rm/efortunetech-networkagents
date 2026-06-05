@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 // WhitelistedIP represents an IP address trusted by the administrator.
@@ -14,13 +15,26 @@ type WhitelistedIP struct {
 	parsed  net.IP
 }
 
+// ipIndex is a pre-computed map from lowercase IP string to whitelist entry
+// for O(1) lookups instead of O(n) linear scans.
+type ipIndex map[string]whitelistEntry
+
+type whitelistEntry struct {
+	ip      string
+	parsed  net.IP
+	comment string
+}
+
 // Config holds all configurable thresholds and settings.
 type Config struct {
-	Thresholds Thresholds      `json:"thresholds"`
-	Excluded   Excluded        `json:"excluded"`
-	Whitelist  []WhitelistedIP `json:"whitelist"`
-	DNSLog     bool            `json:"dns_log"`
-	Alerting   Alerting        `json:"alerting"`
+	Thresholds     Thresholds        `json:"thresholds"`
+	Excluded       Excluded          `json:"excluded"`
+	Whitelist      []WhitelistedIP   `json:"whitelist"`
+	DNSLog         bool              `json:"dns_log"`
+	DNS            DNSConfig         `json:"dns"`
+	Alerting       Alerting          `json:"alerting"`
+	ThreatIntel    ThreatIntelConfig `json:"threat_intel"`
+	ipIndex        ipIndex           // pre-computed for O(1) lookups
 }
 
 // Alerting holds alert delivery configuration.
@@ -35,6 +49,20 @@ type Thresholds struct {
 	MinProcessConnections int `json:"min_process_connections"`
 	CriticalThreshold     int `json:"critical_threshold"`
 	HighThreshold         int `json:"high_threshold"`
+}
+
+// DNSConfig holds DNS lookup behavior settings.
+type DNSConfig struct {
+	LookupConcurrency int `json:"lookup_concurrency"` // max concurrent reverse DNS lookups (0 = default 10)
+}
+
+// ThreatIntelConfig holds live threat intelligence feed settings.
+type ThreatIntelConfig struct {
+	Enabled      bool   `json:"enabled"`
+	RefreshIntvl int    `json:"refresh_interval"` // seconds between auto-refreshes (0 = disabled)
+	APIKey       string `json:"api_key"`          // ThreatFox API key (optional, many endpoints don't require it)
+	Timeout      int    `json:"timeout"`          // HTTP request timeout in seconds (0 = default 10)
+	FeedURL      string `json:"feed_url"`         // custom feed URL (overrides built-in ThreatFox)
 }
 
 // Excluded holds lists of PIDs and processes to skip during scanning.
@@ -57,10 +85,12 @@ func Defaults() Config {
 			Processes: []string{},
 		},
 		Whitelist: []WhitelistedIP{},
-		DNSLog:    false,
-		Alerting: Alerting{
-			WebhookURL: "",
-			Enabled:    false,
+		DNS: DNSConfig{
+			LookupConcurrency: 10,
+		},
+		ThreatIntel: ThreatIntelConfig{
+			RefreshIntvl: 3600, // 1 hour default
+			Timeout:      10,
 		},
 	}
 }
@@ -78,11 +108,13 @@ func Load(filename string) (*Config, error) {
 	}
 
 	var partial struct {
-		Thresholds *Thresholds      `json:"thresholds"`
-		Excluded   *Excluded        `json:"excluded"`
-		Whitelist  *[]WhitelistedIP `json:"whitelist"`
-		DNSLog     *bool            `json:"dns_log"`
-		Alerting   *Alerting        `json:"alerting"`
+		Thresholds   *Thresholds        `json:"thresholds"`
+		Excluded     *Excluded          `json:"excluded"`
+		Whitelist    *[]WhitelistedIP   `json:"whitelist"`
+		DNSLog       *bool              `json:"dns_log"`
+		DNS          *DNSConfig         `json:"dns"`
+		Alerting     *Alerting          `json:"alerting"`
+		ThreatIntel  *ThreatIntelConfig `json:"threat_intel"`
 	}
 	if err := json.Unmarshal(data, &partial); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
@@ -112,8 +144,20 @@ func Load(filename string) (*Config, error) {
 	if partial.DNSLog != nil {
 		cfg.DNSLog = *partial.DNSLog
 	}
+	if partial.DNS != nil {
+		cfg.DNS = *partial.DNS
+		if cfg.DNS.LookupConcurrency <= 0 {
+			cfg.DNS.LookupConcurrency = 10
+		}
+	}
 	if partial.Alerting != nil {
 		cfg.Alerting = *partial.Alerting
+	}
+	if partial.ThreatIntel != nil {
+		cfg.ThreatIntel = *partial.ThreatIntel
+		if cfg.ThreatIntel.Timeout <= 0 {
+			cfg.ThreatIntel.Timeout = 10
+		}
 	}
 	if partial.Whitelist != nil {
 		cfg.Whitelist = *partial.Whitelist
@@ -125,6 +169,9 @@ func Load(filename string) (*Config, error) {
 			}
 		}
 	}
+
+	// Build pre-computed IP index for O(1) whitelist lookups.
+	cfg.buildIPIndex()
 
 	return &cfg, nil
 }
@@ -139,8 +186,45 @@ func (c *Config) IsExcludedPID(pid int) bool {
 	return false
 }
 
+// buildIPIndex pre-computes a map from lowercase IP string to whitelist entry
+// for O(1) lookups during risk assessment.
+func (c *Config) buildIPIndex() {
+	if len(c.Whitelist) == 0 {
+		return
+	}
+	idx := make(ipIndex, len(c.Whitelist))
+	for _, w := range c.Whitelist {
+		parsed := w.parsed
+		if parsed == nil {
+			parsed = net.ParseIP(w.IP)
+		}
+		if parsed != nil {
+			idx[strings.ToLower(w.IP)] = whitelistEntry{
+				ip:      w.IP,
+				parsed:  parsed,
+				comment: w.Comment,
+			}
+		}
+	}
+	c.ipIndex = idx
+}
+
 // IsWhitelistedIP returns true if the given IP is in the whitelist.
 func (c *Config) IsWhitelistedIP(ip string) bool {
+	if c.ipIndex == nil {
+		// Fallback to linear scan if index not built (e.g., Defaults()).
+		return c.isWhitelistedIPLinear(ip)
+	}
+	entry, ok := c.ipIndex[ip]
+	if !ok {
+		// Also try lowercase fallback for edge cases.
+		entry, ok = c.ipIndex[strings.ToLower(ip)]
+	}
+	return ok && entry.parsed != nil && entry.parsed.Equal(net.ParseIP(ip))
+}
+
+// isWhitelistedIPLinear is the fallback O(n) whitelist check.
+func (c *Config) isWhitelistedIPLinear(ip string) bool {
 	parsed := net.ParseIP(ip)
 	if parsed == nil {
 		return false
@@ -159,6 +243,16 @@ func (c *Config) IsWhitelistedIP(ip string) bool {
 
 // GetWhitelistComment returns the comment for a whitelisted IP, or empty string.
 func (c *Config) GetWhitelistComment(ip string) string {
+	if c.ipIndex != nil {
+		entry, ok := c.ipIndex[ip]
+		if !ok {
+			entry, ok = c.ipIndex[strings.ToLower(ip)]
+		}
+		if ok && entry.parsed != nil && entry.parsed.Equal(net.ParseIP(ip)) {
+			return entry.comment
+		}
+	}
+	// Fallback to linear scan.
 	parsed := net.ParseIP(ip)
 	if parsed == nil {
 		return ""
