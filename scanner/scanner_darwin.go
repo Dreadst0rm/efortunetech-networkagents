@@ -8,14 +8,14 @@ import (
 	"strings"
 )
 
-func enumerateProcesses() ([]ProcessInfo, error) {
+func enumerateProcesses() ([]ProcessEntry, error) {
 	cmd := exec.Command("ps", "axco", "pid,comm")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("ps axco failed: %w", err)
 	}
 
-	var procs []ProcessInfo
+	var procs []ProcessEntry
 	lines := strings.Split(string(output), "\n")
 
 	for _, line := range lines[1:] { // skip header
@@ -40,7 +40,7 @@ func enumerateProcesses() ([]ProcessInfo, error) {
 			continue
 		}
 
-		procs = append(procs, ProcessInfo{PID: pid, Name: name})
+		procs = append(procs, ProcessEntry{PID: pid, Name: name})
 	}
 
 	return procs, nil

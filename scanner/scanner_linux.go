@@ -11,8 +11,8 @@ import (
 	"strings"
 )
 
-func enumerateProcesses() ([]ProcessInfo, error) {
-	var procs []ProcessInfo
+func enumerateProcesses() ([]ProcessEntry, error) {
+	var procs []ProcessEntry
 
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
@@ -40,7 +40,7 @@ func enumerateProcesses() ([]ProcessInfo, error) {
 			continue
 		}
 
-		procs = append(procs, ProcessInfo{PID: pid, Name: name})
+		procs = append(procs, ProcessEntry{PID: pid, Name: name})
 	}
 
 	return procs, nil
