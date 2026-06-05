@@ -1,23 +1,54 @@
 package dns
 
 import (
-	"context"
-	"net"
-	"strings"
-	"sync"
-	"time"
-
 	"networksentinel/scanner"
 )
 
-var dnsResolver = &net.Resolver{}
+// dnsSession is a shared DNS session using miekg/dns for all lookups.
+var dnsSession *DNSSession
 
-// dnsResult holds the result of a single reverse DNS lookup.
-type dnsResult struct {
-	idx  int
-	addr string
-	name string
-	err  error
+// init creates a shared DNS session for lookups.
+func init() {
+	s, err := NewDNSSession()
+	if err != nil {
+		dnsSession = nil
+	} else {
+		dnsSession = s
+	}
+}
+
+// DNSCacheEntry represents a captured DNS cache entry with forward resolution.
+type DNSCacheEntry struct {
+	Domain string
+	IP     string
+	PID    int
+}
+
+// CollectDNSCacheEntries performs forward DNS lookups on a list of domains
+// and returns the resolved IP addresses. This complements reverse DNS lookups
+// by providing forward resolution data.
+func CollectDNSCacheEntries(domains []string, concurrency int) []DNSCacheEntry {
+	if len(domains) == 0 || dnsSession == nil {
+		return nil
+	}
+
+	results := dnsSession.QueryMultipleDomains(domains, concurrency)
+	entries := make([]DNSCacheEntry, 0, len(results))
+	for domain, ip := range results {
+		entries = append(entries, DNSCacheEntry{
+			Domain: domain,
+			IP:     ip,
+			PID:    0,
+		})
+	}
+
+	return entries
+}
+
+// LookupResult holds a single resolved domain name for an IP address.
+type LookupResult struct {
+	Addr string // original IP address
+	Name string // resolved domain name
 }
 
 // LookupDomain performs a reverse DNS lookup on an IP address and returns the resolved domain name.
@@ -27,44 +58,20 @@ func LookupDomain(addr string) string {
 		return ""
 	}
 
-	// Strip brackets for IPv6
-	clean := addr
-	if strings.HasPrefix(clean, "[") {
-		idx := strings.Index(clean, "]")
-		if idx > 0 {
-			clean = clean[1:idx]
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	names, err := dnsResolver.LookupAddr(ctx, clean)
-	if err != nil || len(names) == 0 {
+	if dnsSession == nil {
 		return ""
 	}
 
-	// Return the first non-empty result, stripped of trailing dot
-	for _, name := range names {
-		name = strings.TrimSuffix(name, ".")
-		if name != "" {
-			return name
-		}
+	name, err := dnsSession.QueryDomainPTR(addr)
+	if err != nil || name == "" {
+		return ""
 	}
 
-	return ""
+	return name
 }
 
-// LookupResult holds a single resolved domain name for an IP address.
-type LookupResult struct {
-	Addr string // original IP address
-	Name string // resolved domain name
-}
-
-// LookupDomainsParallel performs concurrent reverse DNS lookups for a slice of IP addresses.
-// It uses a worker pool limited by concurrency to avoid overwhelming DNS servers.
-// Each lookup has a 2-second timeout. Results are returned in the same order as input.
-// Non-outbound and empty addresses are skipped and returned with empty Name.
+// LookupDomainsParallel performs concurrent reverse DNS lookups for a slice of IP addresses
+// using miekg/dns. Results are returned in the same order as input.
 func LookupDomainsParallel(addrs []string, concurrency int) []LookupResult {
 	if concurrency <= 0 {
 		concurrency = 10
@@ -81,7 +88,6 @@ func LookupDomainsParallel(addrs []string, concurrency int) []LookupResult {
 	var uniqueAddrs []string
 	for i, a := range addrs {
 		if results[i].Name != "" {
-			// Already resolved (e.g., from prior lookup).
 			continue
 		}
 		if _, dup := seen[a]; dup {
@@ -95,74 +101,20 @@ func LookupDomainsParallel(addrs []string, concurrency int) []LookupResult {
 		return results
 	}
 
-	// Worker pool: channels for tasks and results.
-	type task struct {
-		idx  int
-		addr string
-	}
-	tasks := make(chan task, len(uniqueAddrs))
-	resultsCh := make(chan dnsResult, len(uniqueAddrs))
-
-	// Launch workers.
-	var wg sync.WaitGroup
-	for w := 0; w < concurrency; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for t := range tasks {
-				name, err := resolveAddr(t.addr)
-				resultsCh <- dnsResult{addr: t.addr, name: name, err: err}
-			}
-		}()
+	if dnsSession == nil {
+		return results
 	}
 
-	// Send tasks.
-	for _, a := range uniqueAddrs {
-		tasks <- task{idx: seen[a], addr: a}
-	}
-	close(tasks)
+	// Use miekg/dns session for parallel PTR lookups.
+	ptrResults := dnsSession.QueryMultiplePTRs(uniqueAddrs, concurrency)
 
-	// Drain results.
-	wg.Wait()
-	close(resultsCh)
-
-	for r := range resultsCh {
-		results[r.idx].Name = r.name
+	for _, addr := range uniqueAddrs {
+		if name, ok := ptrResults[addr]; ok {
+			results[seen[addr]].Name = name
+		}
 	}
 
 	return results
-}
-
-// resolveAddr performs a single reverse DNS lookup with timeout.
-func resolveAddr(addr string) (string, error) {
-	if addr == "" || addr == "0.0.0.0" || addr == "*" {
-		return "", nil
-	}
-
-	clean := addr
-	if strings.HasPrefix(clean, "[") {
-		idx := strings.Index(clean, "]")
-		if idx > 0 {
-			clean = clean[1:idx]
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	names, err := dnsResolver.LookupAddr(ctx, clean)
-	if err != nil {
-		return "", err
-	}
-
-	for _, name := range names {
-		name = strings.TrimSuffix(name, ".")
-		if name != "" {
-			return name, nil
-		}
-	}
-
-	return "", nil
 }
 
 // ResolveConnectionsDNS performs parallel DNS lookups on outbound connections and
@@ -189,7 +141,7 @@ func ResolveConnectionsDNS(conns []scanner.Connection, concurrency int) int {
 		tasks = append(tasks, addrIndex{connIdx: i, addr: c.RemoteAddr})
 	}
 
-	if len(tasks) == 0 {
+	if len(tasks) == 0 || dnsSession == nil {
 		return 0
 	}
 
@@ -198,54 +150,57 @@ func ResolveConnectionsDNS(conns []scanner.Connection, concurrency int) int {
 		addrs[i] = t.addr
 	}
 
-	results := LookupDomainsParallel(addrs, concurrency)
+	// Use miekg/dns for parallel PTR lookups.
+	ptrResults := dnsSession.QueryMultiplePTRs(addrs, concurrency)
 
 	count := 0
-	for i, r := range results {
-		if r.Name == "" {
-			continue
+	for i, addr := range addrs {
+		if name, ok := ptrResults[addr]; ok && name != "" {
+			t := tasks[i]
+			conns[t.connIdx].DNSName = name
+			count++
 		}
-		t := tasks[i]
-		conns[t.connIdx].DNSName = r.Name
-		count++
 	}
 
 	return count
 }
 
 // DNSQueriesToIPMap builds a map from IP address to the first domain name
-// that resolved to it from the given DNS queries.
+// that resolved to it from the given DNS queries using miekg/dns forward lookups.
 func DNSQueriesToIPMap(queries []Query) map[string]string {
-	ipMap := make(map[string]string)
+	if dnsSession == nil || len(queries) == 0 {
+		return make(map[string]string)
+	}
+
+	domains := make([]string, 0, len(queries))
 	for _, q := range queries {
-		if q.QueryName == "" {
-			continue
-		}
-		if ip := ResolveDomainToIP(q.QueryName); ip != "" {
-			if _, exists := ipMap[ip]; !exists {
-				ipMap[ip] = q.QueryName
-			}
+		if q.QueryName != "" {
+			domains = append(domains, q.QueryName)
 		}
 	}
+
+	results := dnsSession.QueryMultipleDomains(domains, 20)
+	ipMap := make(map[string]string)
+	for domain, ip := range results {
+		if _, exists := ipMap[ip]; !exists {
+			ipMap[ip] = domain
+		}
+	}
+
 	return ipMap
 }
 
-// ResolveDomainToIP performs a forward DNS lookup and returns the first IPv4 address.
+// ResolveDomainToIP performs a forward DNS lookup and returns the first IPv4 address
+// using miekg/dns.
 func ResolveDomainToIP(domain string) string {
-	if domain == "" {
+	if domain == "" || dnsSession == nil {
 		return ""
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 
-	ips, err := dnsResolver.LookupIPAddr(ctx, domain)
+	ips, err := dnsSession.QueryDomain(domain)
 	if err != nil || len(ips) == 0 {
 		return ""
 	}
-	for _, ip := range ips {
-		if ip.IP.To4() != nil {
-			return ip.IP.String()
-		}
-	}
-	return ""
+
+	return ips[0]
 }

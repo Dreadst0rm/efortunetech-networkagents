@@ -27,47 +27,6 @@ func BenchmarkCheckDomain(b *testing.B) {
 	}
 }
 
-func TestLookupDomain_IPv4(t *testing.T) {
-	// Localhost reverse lookup should return something
-	result := LookupDomain("127.0.0.1")
-	t.Logf("LookupDomain(127.0.0.1) = %q", result)
-}
-
-func TestLookupDomain_Empty(t *testing.T) {
-	result := LookupDomain("")
-	if result != "" {
-		t.Errorf("expected empty string for empty input, got %q", result)
-	}
-}
-
-func TestLookupDomain_InvalidIP(t *testing.T) {
-	result := LookupDomain("0.0.0.0")
-	if result != "" {
-		t.Errorf("expected empty string for 0.0.0.0, got %q", result)
-	}
-}
-
-func TestLookupDomain_Wildcard(t *testing.T) {
-	result := LookupDomain("*")
-	if result != "" {
-		t.Errorf("expected empty string for *, got %q", result)
-	}
-}
-
-func TestLookupDomain_ExternalIP(t *testing.T) {
-	// Try a real external IP — may or may not resolve, but should not panic
-	result := LookupDomain("8.8.8.8")
-	t.Logf("LookupDomain(8.8.8.8) = %q", result)
-}
-
-func TestLookupDomain_ReservedIP(t *testing.T) {
-	// 0.0.0.0 should return empty
-	result := LookupDomain("0.0.0.0")
-	if result != "" {
-		t.Errorf("expected empty for 0.0.0.0, got %q", result)
-	}
-}
-
 // BenchmarkLookupDomainsParallel measures concurrent reverse DNS lookups.
 func BenchmarkLookupDomainsParallel(b *testing.B) {
 	addrs := []string{
@@ -105,38 +64,29 @@ func BenchmarkLookupDomainsParallel(b *testing.B) {
 	})
 }
 
-func TestResolveAddr_EmptyAddr(t *testing.T) {
-	name, err := resolveAddr("")
+func TestLookupDomain_EmptyAddr(t *testing.T) {
+	name := LookupDomain("")
 	if name != "" {
 		t.Errorf("expected empty name, got %q", name)
 	}
-	if err != nil {
-		t.Errorf("expected nil error, got %v", err)
-	}
 }
 
-func TestResolveAddr_Localhost(t *testing.T) {
-	name, err := resolveAddr("127.0.0.1")
-	t.Logf("resolveAddr(127.0.0.1) = %q, err = %v", name, err)
+func TestLookupDomain_Localhost(t *testing.T) {
+	name := LookupDomain("127.0.0.1")
+	t.Logf("LookupDomain(127.0.0.1) = %q", name)
 }
 
-func TestResolveAddr_InvalidIP(t *testing.T) {
-	name, err := resolveAddr("0.0.0.0")
+func TestLookupDomain_InvalidIP(t *testing.T) {
+	name := LookupDomain("0.0.0.0")
 	if name != "" {
 		t.Errorf("expected empty name for 0.0.0.0, got %q", name)
 	}
-	if err != nil {
-		t.Errorf("expected nil error for 0.0.0.0, got %v", err)
-	}
 }
 
-func TestResolveAddr_Wildcard(t *testing.T) {
-	name, err := resolveAddr("*")
+func TestLookupDomain_Wildcard(t *testing.T) {
+	name := LookupDomain("*")
 	if name != "" {
 		t.Errorf("expected empty name for *, got %q", name)
-	}
-	if err != nil {
-		t.Errorf("expected nil error for *, got %v", err)
 	}
 }
 

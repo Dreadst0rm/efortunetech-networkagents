@@ -11,17 +11,17 @@ import (
 	"networksentinel/config"
 )
 
-// CaptureDNSQueries collects DNS cache entries via PowerShell WMI on Windows.
+// CaptureDNSQueries collects DNS cache entries via PowerShell Get-DnsClientCache on Windows.
 func CaptureDNSQueries(cfg *config.Config, hostname string) (*CaptureResult, error) {
 	if !cfg.DNSLog {
 		return nil, nil
 	}
 
 	script := `
-		$entries = Get-CimInstance -ClassName MSFT_DNSClientCache -Namespace 'root\StandardActivityProvider' -ErrorAction SilentlyContinue
+		$entries = Get-DnsClientCache -ErrorAction SilentlyContinue
 		if ($entries) {
 			$entries | ForEach-Object {
-				$json = $_ | Select-Object -Property Entry, TimeToLive, ProcessId | ConvertTo-Json -Compress
+				$json = $_ | Select-Object -Property RecordName, Data, TimeToLive | ConvertTo-Json -Compress
 				Write-Output $json
 			}
 		}
@@ -33,7 +33,7 @@ func CaptureDNSQueries(cfg *config.Config, hostname string) (*CaptureResult, err
 		return &CaptureResult{
 			Timestamp:     time.Now(),
 			Hostname:      hostname,
-			CaptureMethod: "powershell_wmi_failed",
+			CaptureMethod: "powershell_dnsclientcache_failed",
 			Queries:       nil,
 			Suspicious:    nil,
 		}, nil
@@ -47,19 +47,19 @@ func CaptureDNSQueries(cfg *config.Config, hostname string) (*CaptureResult, err
 			continue
 		}
 		var entry struct {
-			Entry      string `json:"Entry"`
-			ProcessId  int    `json:"ProcessId"`
+			RecordName string `json:"RecordName"`
+			Data       string `json:"Data"`
 			TimeToLive int    `json:"TimeToLive"`
 		}
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
 			continue
 		}
-		if entry.Entry == "" {
+		if entry.RecordName == "" {
 			continue
 		}
 		queries = append(queries, Query{
-			QueryName: entry.Entry,
-			PID:       entry.ProcessId,
+			QueryName: entry.RecordName,
+			PID:       0,
 			Timestamp: time.Now(),
 		})
 	}
@@ -68,7 +68,7 @@ func CaptureDNSQueries(cfg *config.Config, hostname string) (*CaptureResult, err
 		Timestamp:     time.Now(),
 		Hostname:      hostname,
 		Queries:       queries,
-		CaptureMethod: "powershell_wmi",
+		CaptureMethod: "powershell_dnsclientcache",
 	}
 
 	var suspicious []SuspiciousDomainResult

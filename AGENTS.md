@@ -60,3 +60,4 @@ Key implementation:
 - **Karpathy guidelines**: Think before coding (surface tradeoffs), simplicity first (200 lines → 50), surgical changes (touch only what's requested), goal-driven execution (verifiable success criteria).
 - **PowerShell output**: Use `Select-Object -First N` instead of `| head`. Use `Get-ChildItem` with `Where-Object` for filtering. Use `ForEach-Object` for iteration.
 - **Go test coverage**: Use `go test ./... -coverprofile=c.out` then `go tool cover -func c.out` for per-function coverage detail. All packages must pass before proceeding.
+- **DNS capture debugging**: When DNS names are empty in reports, check `CaptureMethod` first — if it ends in `_failed`, the capture never ran. On Windows, `MSFT_DNSClientCache` WMI class was removed in Windows 10/11; use `Get-DnsClientCache` PowerShell cmdlet instead. Always verify capture worked before debugging cross-reference logic.
