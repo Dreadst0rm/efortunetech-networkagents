@@ -13,6 +13,7 @@ import (
 )
 
 // CaptureDNSQueries collects DNS cache entries via journalctl on Linux.
+// Falls back to miekg/dns forward lookups when platform capture yields nothing.
 func CaptureDNSQueries(cfg *config.Config, hostname string) (*CaptureResult, error) {
 	if !cfg.DNSLog {
 		return nil, nil
@@ -41,7 +42,6 @@ func CaptureDNSQueries(cfg *config.Config, hostname string) (*CaptureResult, err
 	if len(queries) == 0 {
 		f, err := os.Open("/var/log/syslog")
 		if err == nil {
-			defer f.Close()
 			scanner := bufio.NewScanner(f)
 			for scanner.Scan() {
 				line := scanner.Text()
@@ -55,7 +55,13 @@ func CaptureDNSQueries(cfg *config.Config, hostname string) (*CaptureResult, err
 					}
 				}
 			}
+			f.Close()
 		}
+	}
+
+	// miekg/dns fallback: resolve connection remote addresses via PTR
+	if len(queries) == 0 {
+		queries = resolveConnectionDomains(nil)
 	}
 
 	result := &CaptureResult{

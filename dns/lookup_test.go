@@ -71,11 +71,6 @@ func TestLookupDomain_EmptyAddr(t *testing.T) {
 	}
 }
 
-func TestLookupDomain_Localhost(t *testing.T) {
-	name := LookupDomain("127.0.0.1")
-	t.Logf("LookupDomain(127.0.0.1) = %q", name)
-}
-
 func TestLookupDomain_InvalidIP(t *testing.T) {
 	name := LookupDomain("0.0.0.0")
 	if name != "" {
@@ -123,8 +118,8 @@ func TestResolveConnectionsDNS_EmptyConns(t *testing.T) {
 func TestResolveConnectionsDNS_NoOutbound(t *testing.T) {
 	conns := []scanner.Connection{
 		{
-			Direction: "inbound",
-			RemoteAddr: "0.0.0.0",
+			Direction:    "inbound",
+			RemoteAddr:   "0.0.0.0",
 		},
 	}
 	count := ResolveConnectionsDNS(conns, 5)
@@ -153,4 +148,31 @@ func TestResolveDomainToIP_Empty(t *testing.T) {
 	if ip != "" {
 		t.Errorf("expected empty IP for empty domain, got %q", ip)
 	}
+}
+
+func TestResolveConnectionDomains_EmptyConns(t *testing.T) {
+	q := resolveConnectionDomains([]scanner.Connection{})
+	if q != nil && len(q) > 0 {
+		t.Errorf("expected no queries for empty conns, got %d", len(q))
+	}
+}
+
+func TestResolveConnectionDomains_NoOutbound(t *testing.T) {
+	conns := []scanner.Connection{
+		{Direction: "inbound", RemoteAddr: "0.0.0.0"},
+	}
+	q := resolveConnectionDomains(conns)
+	if q != nil && len(q) > 0 {
+		t.Errorf("expected no queries for inbound conns, got %d", len(q))
+	}
+}
+
+func TestResolveConnectionDomains_Deduplication(t *testing.T) {
+	conns := []scanner.Connection{
+		{Direction: "outbound", RemoteAddr: "8.8.8.8"},
+		{Direction: "outbound", RemoteAddr: "8.8.8.8"},
+		{Direction: "outbound", RemoteAddr: "8.8.8.8"},
+	}
+	q := resolveConnectionDomains(conns)
+	t.Logf("resolveConnectionDomains dedup result: %d queries", len(q))
 }

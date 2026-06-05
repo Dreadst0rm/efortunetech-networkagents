@@ -1,6 +1,8 @@
 package dns
 
 import (
+	"time"
+
 	"networksentinel/scanner"
 )
 
@@ -203,4 +205,44 @@ func ResolveDomainToIP(domain string) string {
 	}
 
 	return ips[0]
+}
+
+// resolveConnectionDomains extracts unique outbound IPs from connections and
+// resolves them via miekg/dns as a fallback when platform DNS cache capture returns empty.
+func resolveConnectionDomains(conns []scanner.Connection) []Query {
+	if dnsSession == nil {
+		return nil
+	}
+
+	// Collect unique outbound IPs.
+	seen := make(map[string]bool)
+	var addrs []string
+	for _, c := range conns {
+		if c.Direction == "outbound" && c.RemoteAddr != "" && c.RemoteAddr != "0.0.0.0" {
+			if !seen[c.RemoteAddr] {
+				seen[c.RemoteAddr] = true
+				addrs = append(addrs, c.RemoteAddr)
+			}
+		}
+	}
+
+	if len(addrs) == 0 {
+		return nil
+	}
+
+	// Resolve each IP via PTR lookup.
+	ptrResults := dnsSession.QueryMultiplePTRs(addrs, 20)
+
+	var queries []Query
+	for _, addr := range addrs {
+		if name, ok := ptrResults[addr]; ok && name != "" {
+			queries = append(queries, Query{
+				QueryName: name,
+				PID:       0,
+				Timestamp: time.Now(),
+			})
+		}
+	}
+
+	return queries
 }
