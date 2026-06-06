@@ -1,0 +1,14 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "Network Sentinel",
+  "outputfilename": "network-sentinel-ui",
+  "config_file": "config.json",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Ed",
+    "email": "93836217+Dreadst0rm@users.noreply.github.com"
+  }
+}

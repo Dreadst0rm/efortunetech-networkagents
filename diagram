@@ -1,0 +1,703 @@
+# NetworkSentinel Architecture Diagrams
+
+> Generated: 2026-06-05
+> Module: networksentinel v0.4.0
+
+---
+
+## Diagram 1: System Context (C4 Level 1)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                                                                        │
+│                        HOST MACHINE                                   │
+│                                                                        │
+│   ┌──────────────────────────────────────────────────────────────┐     │
+│   │                    NetworkSentinel (Go Binary)                │     │
+│   │                                                                │     │
+│   │   ┌────────────┐    ┌────────────┐    ┌───────────────────┐  │     │
+│   │   │  Scanner   │    │  Process   │    │  Threat Intel     │  │     │
+│   │   │            │    │  Info      │    │  Database         │  │     │
+│   │   │ - wmic     │    │ - Token    │    │  - Built-in 32    │  │     │
+│   │   │ - netstat  │    │   Elevation│    │    indicators     │  │     │
+│   │   │ - inode    │    │ - Signing  │    │  - Live Feed      │  │     │
+│   │   │  mapping   │    │ - Integrity│    │  - CSV Feeds      │  │     │
+│   │   └────┬───────┘    └─────┬──────┘    └────────┬──────────┘  │     │
+│   │        │                 │                      │             │     │
+│   │   ┌────▼──────┐    ┌─────▼──────┐    ┌─────────▼──────────┐ │     │
+│   │   │   DNS      │    │  Config    │    │   Alerting         │ │     │
+│   │   │ Resolver   │    │  System    │    │   - Webhook        │ │     │
+│   │   │ - miekg/   │    │  - JSON    │    │   - Syslog         │ │     │
+│   │   │   dns      │    │  - CLI     │    │                    │ │     │
+│   │   │ - Cache    │    │  - Default │    └────────────────────┘ │     │
+│   │   │ - PTR      │    └────────────┘                          │     │
+│   │   │ - Forward  │                                          │     │
+│   │   └────────────┘     ┌─────────────┐                        │     │
+│   │                      │  Baseline   │                        │     │
+│   │                      │  System     │                        │     │
+│   │                      │  - JSON     │                        │     │
+│   │                      │  - Diff     │                        │     │
+│   │                      └─────────────┘                        │     │
+│   │                                                                │     │
+│   │   ┌──────────────────────────────────────────────────────┐     │     │
+│   │   │              Report Generator                         │     │     │
+│   │   │  - Markdown (.md)                                    │     │     │
+│   │   │  - JSON (.json)                                      │     │     │
+│   │   │  - CSV (.csv)                                        │     │     │
+│   │   └──────────────────────────────────────────────────────┘     │     │
+│   └──────────────────────────────────────────────────────────────┘     │
+│                                                                        │
+│   ┌──────────────────────────────────────────────────────────────┐     │
+│   │                    EXTERNAL SYSTEMS                           │     │
+│   │  - OS Utilities (wmic, netstat, ps, lsof, journalctl, ...)   │     │
+│   │  - DNS Resolver (miekg/dns → system resolver)               │     │
+│   │  - ThreatFox API (https://threatfox-api.abuse.ch)           │     │
+│   │  - C2IntelFeeds (GitHub CSV)                                 │     │
+│   └──────────────────────────────────────────────────────────────┘     │
+│                                                                        │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Diagram 2: Container / Architecture (C4 Level 2)
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│                         main.go (Orchestrator)                               │
+│                                                                              │
+│  ┌────────────┐      ┌─────────────┐      ┌───────────────┐                 │
+│  │ systeminfo │─────▶│  scanner    │─────▶│  dns          │                 │
+│  │            │      │             │      │               │                 │
+│  │ Hostname   │      │ - Enumerate │      │ - Capture     │                 │
+│ │ OS Platform│      │ - Connect   │      │ - Resolve     │                 │
+│ │ Local IPs  │      │ - Correlate │      │ - Suspicion   │                 │
+│ └────────────┘      │ - Filter    │      │               │                 │
+│       │             │ - SecInfo   │      │               │                 │
+│       │         ┌───▼─────────────┴───┐  │               │                 │
+│       │         │  processinfo        │  │               │                 │
+│       │         │  - Privilege        │◀─┘               │                 │
+│       │         │  - Signing          │                  │                 │
+│       │         │  - Integrity        │                  │                 │
+│       │         │  - User Context     │                  │                 │
+│       │         └─────────────────────┘                  │                 │
+│       │                                                    │                 │
+│       │         ┌─────────────────────┐                   │                 │
+│       │         │  threatintel        │                   │                 │
+│       │         │  - IOC DB           │◀─────────────────┘                 │
+│       │         │  - KnownC2IPs (32)  │                                     │
+│       │         │  - ThreatFox Feed   │                                     │
+│       │         │  - C2IntelFeeds CSV │                                     │
+│       │         └─────────────────────┘                                     │
+│       │                                                                    │
+│       │         ┌─────────────────────┐   ┌───────────────────┐           │
+│       │         │  baseline           │   │  alerting         │           │
+│       │         │  - Save/Load        │   │  - Registry       │           │
+│       │         │  - Diff (New/Gone)  │   │  - Webhook        │           │
+│       │         └─────────────────────┘   │  - Syslog         │           │
+│       │                                    └───────────────────┘           │
+│       │                                                                    │
+│       └─────────────────────────────────┬──────────────────────────────────┘
+│                                            │
+│                                            ▼
+│                                    ┌─────────────────┐
+│                                    │  report         │
+│                                    │  - Markdown     │
+│                                    │  - JSON         │
+│                                    │  - CSV          │
+│                                    └─────────────────┘
+│                                    │
+│                                    ▼
+│                            Output Files:
+│                            - *.md
+│                            - *.json
+│                            - *_connections.csv
+│                            - *_risks.csv
+│                            - baseline.json
+│                            - captured_dns_*.json
+│
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Diagram 3: Scan Pipeline (Data Flow)
+
+```
+Phase 1: System Information
+┌──────────────────────────────────────────────────────────┐
+│  systeminfo.Gather()                                     │
+│  ─────────────────────                                   │
+│  → Hostname, OS Platform, Local IPs                      │
+│  → *SystemDetails                                        │
+└────────────────────────┬─────────────────────────────────┘
+                         │
+                         ▼
+Phase 2: Network & Process Scan
+┌──────────────────────────────────────────────────────────┐
+│  scanner.ScanAll(cfg)                                    │
+│  ─────────────────────                                   │
+│  ├─ enumerateProcesses()   → []ProcessEntry              │
+│  ├─ getNetConnections()    → []Connection                │
+│  ├─ Correlate(PID)         → Connection.Process          │
+│  ├─ determineDirection()   → outbound/internal/inbound   │
+│  ├─ Filter(excluded)       → filtered connections        │
+│  └─ processinfo.GetProcessInfo(PID) → map[int]Info       │
+│                                                          │
+│  dns.ResolveConnectionsDNS()                             │
+│  ────────────────────────────                            │
+│  → Connection.DNSName (populated via PTR lookup)         │
+└────────────────────────┬─────────────────────────────────┘
+                         │
+                         ▼
+Phase 3: Baseline Comparison
+┌──────────────────────────────────────────────────────────┐
+│  baseline.Load("baseline.json")                          │
+│  ────────────────────────────                            │
+│  → baseline.Diff(current, previous)                      │
+│  → DiffResult{New, Gone, Unchanged, BaselineAge}         │
+└────────────────────────┬─────────────────────────────────┘
+                         │
+                         ▼
+Phase 4: Threat Intel + Risk Assessment
+┌──────────────────────────────────────────────────────────┐
+│  threatintel.NewThreatIntelDB()                          │
+│  ────────────────────────────                            │
+│  ├─ AddIOCs(KnownC2IPs)      → 32 built-in indicators    │
+│  ├─ GetFeedIOCs(feedFile)    → external feed indicators  │
+│  ├─ cacheMgr.GetIOCs()       → live ThreatFox indicators │
+│  └─ c2Client.FetchAllIOCs()  → C2IntelFeeds CSV          │
+│                                                          │
+│  scanner.AssessConnectionRiskWithThreatIntel()           │
+│  ─────────────────────────────────────────────────────── │
+│  Per connection (6 heuristics):                          │
+│    1. Suspicious port (37 ports)                         │
+│    2. Suspicious process (platform-aware list)           │
+│    3. Transition state (SYN_SENT, TIME_WAIT, ...)        │
+│    4. High per-IP connection count (threshold)           │
+│    5. High per-process connection count (threshold)      │
+│    6. Privilege escalation chain                         │
+│                                                          │
+│  Threat Intel matching:                                  │
+│    └─ confidence >= 90 → critical                        │
+│       confidence >= 80 → high (if not higher)            │
+│                                                          │
+│  → []ConnectionRisk                                      │
+└────────────────────────┬─────────────────────────────────┘
+                         │
+                         ▼
+Phase 5: Report Generation
+┌──────────────────────────────────────────────────────────┐
+│  report.Data{                                           │
+│    System, Connections, Processes, Risks,               │
+│    Security, Baseline, Whitelist, DNSQueries             │
+│  }                                                       │
+│                                                          │
+│  → report.GenerateMarkdown()  → *.md                    │
+│  → report.GenerateJSON()        → *.json                │
+│  → report.GenerateCSV()         → *_connections.csv     │
+│                               → *_risks.csv             │
+│                                                          │
+│  alerting.NewRegistry()                                  │
+│  └─ WebhookNotifier / SyslogNotifier (high+critical)    │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Diagram 4: Risk Assessment Engine
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AssessConnectionRisk()                        │
+│                                                                 │
+│  Input: []Connection, map[int]Info, *Config                     │
+│                                                                 │
+│  Pre-computation:                                              │
+│  ├─ procCount[process] = count of outbound connections         │
+│  └─ ipCount[remoteAddr] = count of outbound connections         │
+│                                                                 │
+│  For each outbound connection:                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ count = 0                                               │    │
+│  │ isWhitelisted = cfg.IsWhitelistedIP(remoteAddr)         │    │
+│  │                                                         │    │
+│  │ if !isWhitelisted && IsSuspiciousPort(remotePort):      │    │
+│  │     reasons[count] = "suspicious port XXXX"             │    │
+│  │     count++                                             │    │
+│  │                                                         │    │
+│  │ if !isWhitelisted && IsSuspiciousProcess(process):      │    │
+│  │     reasons[count] = "suspicious process: XXX"          │    │
+│  │     count++                                             │    │
+│  │                                                         │    │
+│  │ if IsTransitionState(state):                            │    │
+│  │     reasons[count] = "connection state: XXX"            │    │
+│  │     count++                                             │    │
+│  │                                                         │    │
+│  │ if ipCount[remoteAddr] >= cfg.Thresholds.MinIP:         │    │
+│  │     reasons[count] = "high connection count to X.X.X.X" │    │
+│  │     count++                                             │    │
+│  │                                                         │    │
+│  │ if procCount[process] >= cfg.Thresholds.MinProcess:     │    │
+│  │     reasons[count] = "high outbound count for XXX"      │    │
+│  │     count++                                             │    │
+│  │                                                         │    │
+│  │ if info, ok := secInfo[PID]; ok:                        │    │
+│  │     if privEscReason(info) != "":                       │    │
+│  │         reasons[count] = "PRIV ESCALATION: ..."         │    │
+│  │         count++                                         │    │
+│  │                                                         │    │
+│  │ Assign risk level:                                     │    │
+│  │   count >= critical_threshold → critical               │    │
+│  │   count >= high_threshold     → high                   │    │
+│  │   count == 1                → medium                   │    │
+│  │   count == 0                → skip (no risk)           │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                 │
+│  Output: []ConnectionRisk                                       │
+└─────────────────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              AssessConnectionRiskWithThreatIntel()              │
+│                                                                 │
+│  Input: []ConnectionRisk, *ThreatIntelDB                        │
+│                                                                 │
+│  For each risk:                                                │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ match := tiDB.LookupConnection(remoteAddr)              │    │
+│  │ if match != nil:                                        │    │
+│  │     for each ioc in match.IOCs:                         │    │
+│  │         reasons += "THREAT_INTEL: family (source)       │    │
+│  │                       confidence=X country=XX"          │    │
+│  │         if ioc.Confidence >= 90:                        │    │
+│  │             riskLevel = critical                        │    │
+│  │         elif ioc.Confidence >= 80:                      │    │
+│  │             if riskLevel in (low, medium):              │    │
+│  │                 riskLevel = high                        │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                 │
+│  Output: []ConnectionRisk (enriched with threat intel)          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Diagram 5: Package Dependency Graph
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      DEPENDENCY GRAPH                               │
+│                                                                     │
+│  main                                                               │
+│  ├── config                                                        │
+│  ├── scanner                                                       │
+│  │   ├── config                                                    │
+│  │   ├── processinfo                                               │
+│  │   └── threatintel                                               │
+│  ├── processinfo                                                   │
+│  ├── threatintel                                                   │
+│  ├── dns                                                           │
+│  │   ├── config                                                    │
+│  │   ├── scanner                                                   │
+│  │   └── github.com/miekg/dns (external)                           │
+│  ├── report                                                        │
+│  │   ├── baseline                                                  │
+│  │   ├── dns                                                       │
+│  │   ├── processinfo                                               │
+│  │   ├── scanner                                                   │
+│  │   ├── systeminfo                                                │
+│  │   └── version                                                   │
+│  ├── baseline                                                      │
+│  ├── systeminfo                                                    │
+│  ├── version                                                       │
+│  └── alerting                                                      │
+│                                                                     │
+│  No circular dependencies. Pure layered architecture.               │
+│                                                                     │
+│  LEAF PACKAGES (no internal deps):                                  │
+│  ├── config                                                        │
+│  ├── baseline                                                      │
+│  ├── systeminfo                                                    │
+│  ├── version                                                       │
+│  ├── alerting                                                      │
+│  ├── threatintel                                                   │
+│  └── processinfo                                                   │
+│                                                                     │
+│  MIDDLE PACKAGES:                                                   │
+│  ├── scanner → config, processinfo, threatintel                    │
+│  ├── dns → config, scanner, miekg/dns                              │
+│                                                                     │
+│  TOP PACKAGE:                                                       │
+│  └── main → all packages                                           │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Diagram 6: Cross-Platform Abstraction
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                   PLATFORM ABSTRACTION LAYER                         │
+│                                                                      │
+│  Shared Types (go, no build tag):                                    │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │  scanner.go                                                  │    │
+│  │  ├── Connection, ProcessEntry, ConnectionRisk               │    │
+│  │  ├── RiskLevel (low, medium, high, critical)                │    │
+│  │  ├── ScanAll() → conns, procs, secInfo                      │    │
+│  │  ├── AssessConnectionRisk() → risks                         │    │
+│  │  ├── assessConnectionRiskWithThreatIntel() → enriched risks │    │
+│  │  ├── IsPrivateIP(), IsExternalIP()                          │    │
+│  │  ├── IsSuspiciousPort(), IsTransitionState()                │    │
+│  │  ├── SuspiciousProcessNamesList()                           │    │
+│  │  └── privEscReason()                                        │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│                                      │                               │
+│  ┌───────────────────────────────────┼─────────────────────────────┐│
+│  │                                  ▼                              ││
+│  │  ┌─────────────────────────────────────────────────────────┐   ││
+│  │  │  Platform-Specific Implementations (go:build tag)       │   ││
+│  │  │                                                         │   ││
+│  │  │  scanner_windows.go    │  processinfo_windows.go       │   ││
+│  │  │  └── wmic process      │  └── PowerShell token check   │   ││
+│  │  │  └── netstat -ano     │  └── Authenticode signature   │   ││
+│  │  │  └── suspiciousProcs  │                                 │   ││
+│  │  │       (24 Windows names)                               │   ││
+│  │  │                                                         │   ││
+│  │  │  scanner_linux.go      │  processinfo_linux.go         │   ││
+│  │  │  └── /proc/net/tcp     │  └── /proc/PID/exe            │   ││
+│  │  │  └── /proc/net/tcp6    │  └── /proc/PID/status         │   ││
+│  │  │  └── inode→PID mapping │  └── /etc/passwd              │   ││
+│  │  │  └── suspiciousProcs   │                                 │   ││
+│  │  │       (Linux names)                                    │   ││
+│  │  │                                                         │   ││
+│  │  │  scanner_darwin.go     │  processinfo_darwin.go        │   ││
+│  │  │  └── ps axco pid,comm  │  └── ps + which               │   ││
+│  │  │  └── lsof -nP -i      │                                 │   ││
+│  │  │  └── suspiciousProcs   │                                 │   ││
+│  │  │       (macOS names)                                    │   ││
+│  │  └─────────────────────────────────────────────────────────┘   ││
+│  └─────────────────────────────────────────────────────────────────││
+│                                                                      ││
+│  DNS Cache Capture (similar pattern):                                │
+│  ┌─────────────────────────────────────────────────────────────┐    ││
+│  │  query.go        │  query_windows.go  │  query_linux.go     │    ││
+│  │  └── CaptureDNS  │  └── Get-DnsClient│  └── journalctl     │    ││
+│  │  └── CheckDomain │  └── CaptureDNS   │  └── syslog          │    ││
+│  │  └── SaveCapture│                 │                                 │    ││
+│  │  └── Query      │  query_darwin.go│                                 │    ││
+│  │                 │  └── dscacheutil│                                 │    ││
+│  │                 │  └── log        │                                 │    ││
+│  └─────────────────────────────────────────────────────────────┘    ││
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Diagram 7: Threat Intel Data Sources
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                    THREAT INTEL AGGREGATION                          │
+│                                                                      │
+│  ┌────────────────────┐    ┌────────────────────┐                   │
+│  │ Built-in Indicators│    │ External Feed File │                   │
+│  │ (KnownC2IPs)       │    │ (--feed flag)      │                   │
+│  │ - 32 IOC entries   │    │ - JSON format      │                   │
+│  │ - CobaltStrike     │    │ - Array of IOC     │                   │
+│  │ - Metasploit       │    └─────────┬──────────┘                   │
+│  │ - Empire, Sliver   │              │                              │
+│  │ - BruteRatel, etc. │              │                              │
+│  │ - Phishing domains │              │                              │
+│  └──────────┬─────────┘              │                              │
+│             │                         │                              │
+│             └─────────┬───────────────┘                              │
+│                       ▼                                              │
+│  ┌─────────────────────────────────────────────┐                     │
+│  │         threatintel.ThreatIntelDB            │                     │
+│  │  ┌─────────────────┐  ┌───────────────────┐ │                     │
+│  │  │ ipv4 map[string] │  │ domain map[string]│ │                     │
+│  │  │     []IOC        │  │      []IOC        │ │                     │
+│  │  └─────────────────┘  └───────────────────┘ │                     │
+│  └─────────────────────────────────────────────┘                     │
+│             ▲                    │                                    │
+│             │                    │                                    │
+│  ┌──────────┴─────────┐ ┌────────┴────────────┐                    │
+│  │ Live Feed (ThreatFox)│ │ CSV Feed (C2Intel  │                    │
+│  │ - HTTP GET          │ │  Feeds)             │                    │
+│  │ - API endpoint      │ │ - GitHub raw CSV    │                    │
+│  │ - 5000 limit        │ │ - IPC2s.csv         │                    │
+│  │ - Cache TTL 1 hour  │ │ - IPC2s-30day.csv   │                    │
+│  │ - Stale fallback    │ │ - IPPortC2s.csv     │                    │
+│  └─────────────────────┘ │ - domainC2s.csv     │                    │
+│                          └─────────────────────┘                    │
+│                                                                      │
+│  All sources → AddIOCs() → ThreatIntelDB                             │
+│                                                                      │
+│  Lookup: LookupConnection(remoteAddr) → MatchResult{IOC[]}           │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Diagram 8: Configuration & Thresholds
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    CONFIGURATION MODEL                           │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  Defaults()                                               │   │
+│  │  ─────────────                                            │   │
+│  │  Thresholds:                                              │   │
+│  │    MinIPConnections: 5                                     │   │
+│  │    MinProcessConnections: 5                                │   │
+│  │    CriticalThreshold: 3                                    │   │
+│  │    HighThreshold: 2                                        │   │
+│  │  DNS.LookupConcurrency: 10                                 │   │
+│  │  ThreatIntel.RefreshIntvl: 3600                            │   │
+│  │  ThreatIntel.Timeout: 10                                   │   │
+│  └──────────────────────────┬────────────────────────────────┘   │
+│                             │                                     │
+│                             ▼                                     │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  Load("config.json")                                       │   │
+│  │  ─────────────────                                        │   │
+│  │  1. Start with Defaults()                                  │   │
+│  │  2. Parse JSON overlay                                     │   │
+│  │  3. Validate & clamp values                                │   │
+│  │     - Negative thresholds → 0                              │   │
+│  │     - Critical < High → Critical = High                    │   │
+│  │     - Invalid IPs → cleared, not crashed                   │   │
+│  │  4. Build ipIndex (O(1) whitelist lookup)                  │   │
+│  └──────────────────────────┬────────────────────────────────┘   │
+│                             │                                     │
+│                             ▼                                     │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  Config (runtime)                                          │   │
+│  │  ──────────────                                            │   │
+│  │  .Thresholds    → numeric thresholds for heuristics        │   │
+│  │  .Excluded      → PIDs and processes to skip               │   │
+│  │  .Whitelist     → trusted IPs with comments                │   │
+│  │  .DNSLog        → enable DNS cache capture                 │   │
+│  │  .DNS           → concurrency settings                     │   │
+│  │  .Alerting      → webhook URL + enabled flag               │   │
+│  │  .ThreatIntel   → feed settings + timeout                  │   │
+│  │  .ipIndex       → pre-computed map[string]whitelistEntry   │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  CLI Flags (override config.json):                               │
+│  ├── -config  "config.json"   → config file path                │
+│  ├── -output  "."             → output directory                │
+│  ├── -daemon  0               → scan interval (0 = single)      │
+│  └── -feed    ""              → external feed file              │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Diagram 9: Risk Level Hierarchy
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    RISK LEVEL HIERARCHY                          │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  RiskCritical  ("critical")                                │   │
+│  │  ─────────────                                             │   │
+│  │  • count >= CriticalThreshold (default: 3)                 │   │
+│  │  • Threat intel confidence >= 90                           │   │
+│  │  • Action: Alert + Webhook + Syslog                        │   │
+│  └──────────────────────────┬────────────────────────────────┘   │
+│                             │                                     │
+│  ┌─────────────────────────▼──────────────────────────────────┐  │
+│  │  RiskHigh      ("high")                                     │  │
+│  │  ─────────────                                                │  │
+│  │  • count >= HighThreshold (default: 2)                      │  │
+│  │  • Threat intel confidence >= 80 (upgrades low/medium → high)│  │
+│  │  • Action: Alert + Webhook + Syslog                         │  │
+│  └──────────────────────────┬─────────────────────────────────┘  │
+│                             │                                     │
+│  ┌─────────────────────────▼──────────────────────────────────┐  │
+│  │  RiskMedium    ("medium")                                   │  │
+│  │  ──────────────                                             │  │
+│  │  • count == 1 (exactly one heuristic fired)                 │  │
+│  │  • Action: Logged in report                                 │  │
+│  └──────────────────────────┬─────────────────────────────────┘  │
+│                             │                                     │
+│  ┌─────────────────────────▼──────────────────────────────────┐  │
+│  │  RiskLow       ("low")                                      │  │
+│  │  ─────────────                                                │  │
+│  │  • count == 0 (no heuristics fired)                         │  │
+│  │  • Action: Suppressed (not included in risks)               │  │
+│  └─────────────────────────────────────────────────────────────┘  │
+│                                                                  │
+│  Risk Escalation via Threat Intel:                                │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  low/medium + confidence >= 80 → high                      │   │
+│  │  anything + confidence >= 90 → critical                    │   │
+│  └───────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Diagram 10: Daemon Mode Operation
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    DAEMON MODE LIFECYCLE                         │
+│                                                                  │
+│  main()                                                        │
+│  ├── Parse CLI flags                                           │
+│  ├── Load config                                               │
+│  ├── if *daemonInterval > 0:                                   │
+│  │   └─ runDaemon(cfg, interval, outputDir)                    │
+│  │       ├── signal.Notify(SIGINT, SIGTERM)                    │
+│  │       ├── context.WithCancel(context.Background())          │
+│  │       ├── time.NewTicker(interval)                          │
+│  │       │   ├── for { select: }                                │
+│  │       │   │   ├── <-ctx.Done() → return                     │
+│  │       │   │   └── <-ticker.C → runScan(cfg, outputDir)      │
+│  │       │   │       └─ (same 5-phase pipeline)                │
+│  │       │   └── defer ticker.Stop()                           │
+│  │       └── <-sigCh → cancel()                                │
+│  │           └─ "Shutting down daemon..."                      │
+│  │                                                               │
+│  └── else:                                                     │
+│      └─ runScan(cfg, outputDir)  (single execution)            │
+│                                                                  │
+│  Signal Handling:                                               │
+│  ├── SIGINT  (Ctrl+C) → graceful shutdown                       │
+│  └── SIGTERM → graceful shutdown                                │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Diagram 11: Report Generation Flow
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                   REPORT GENERATION FLOW                         │
+│                                                                  │
+│  Input: report.Data{                                             │
+│    System, Connections, Processes, Risks,                        │
+│    Security, Baseline, Whitelist, DNSQueries                     │
+│  }                                                               │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  GenerateMarkdown(data, filename)                          │   │
+│  │  ─────────────────────────────────                         │   │
+│  │  Sections:                                                │   │
+│  │  1. System Information                                     │   │
+│  │  2. Network Connections Summary                            │   │
+│  │  3. External Endpoints                                     │   │
+│  │  4. DNS Queries                                            │   │
+│  │  5. Suspicious Connections                                 │   │
+│  │  6. Risk Analysis Summary                                  │   │
+│  │  7. Whitelisted Connections                                │   │
+│  │  8. Top Processes by Network Activity                      │   │
+│  │  9. Privilege Escalation Analysis                          │   │
+│  │  10. Baseline Comparison                                   │   │
+│  │  11. Key Findings                                          │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  GenerateJSON(data, filename)                              │   │
+│  │  ─────────────────────────────────                         │   │
+│  │  Structure:                                               │   │
+│  │  {                                                         │   │
+│  │    "version": "0.4.0",                                     │   │
+│  │    "scan_time": "...",                                     │   │
+│  │    "system": {...},                                        │   │
+│  │    "connections": [...],                                   │   │
+│  │    "processes": [...],                                     │   │
+│  │    "risks": [...],                                         │   │
+│  │    "security": {...},                                      │   │
+│  │    "baseline": {...},                                      │   │
+│  │    "findings": {...},                                      │   │
+│  │    "dns_lookups": N                                        │   │
+│  │  }                                                         │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  GenerateCSV(data, connFile, riskFile)                     │   │
+│  │  ─────────────────────────────────                         │   │
+│  │  connections.csv:                                         │   │
+│  │    ProcessID,Process,Executable,LocalAddr,LocalPort,       │   │
+│  │    DNSName,RemoteAddr,RemotePort,Protocol,State,Direction  │   │
+│  │                                                         │   │
+│  │  risks.csv:                                               │   │
+│  │    RiskLevel,ProcessID,Process,LocalAddr,LocalPort,       │   │
+│  │    RemoteAddr,RemotePort,State,Direction,Reasons          │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  Output Files:                                                  │
+│  ├── network_sentinel_<hostname>_<timestamp>.md                  │   │
+│  ├── network_sentinel_<hostname>_<timestamp>.json                │   │
+│  ├── network_sentinel_<hostname>_<timestamp>_connections.csv     │   │
+│  └── network_sentinel_<hostname>_<timestamp>_risks.csv           │   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Diagram 12: Privilege Escalation Detection
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│               PRIVILEGE ESCALATION DETECTION                     │
+│                                                                  │
+│  For each PID with elevated privilege:                           │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  info := secInfo[PID]                                      │   │
+│  │  isElevated := info.PrivLevel == Elevated ||               │   │
+│  │                 info.PrivLevel == SYSTEM                    │   │
+│  │                                                         │   │
+│  │  if !isElevated → skip                                    │   │
+│  │                                                         │   │
+│  │  isTempPath := IsSuspiciousPath(info.ExePath)             │   │
+│  │                                                         │   │
+│  │  if !info.IsSigned && isTempPath:                         │   │
+│  │      → "PRIVILEGE ESCALATION: elevated + unsigned        │   │
+│  │           + temp path"                                    │   │
+│  │      → escalationCount++                                  │   │
+│  │                                                         │   │
+│  │  elif !info.IsSigned:                                     │   │
+│  │      → "elevated + unsigned binary: <path>"               │   │
+│  │                                                         │   │
+│  │  elif isTempPath:                                         │   │
+│  │      → "elevated process from temp path: <path>"          │   │
+│  │                                                         │   │
+│  │  else → no escalation risk (signed + safe path)           │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  Suspicious Path Patterns (per-OS):                              │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  Windows: %temp%, %tmp%, AppData\LocalTemp,                │   │
+│  │           Downloads, Public, Users\*                       │   │
+│  │                                                         │   │
+│  │  Linux: /tmp, /var/tmp, /dev/shm, /run/user               │   │
+│  │                                                         │   │
+│  │  macOS: /tmp, /var/tmp, /Users/*/Downloads                 │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  Report Section:                                                │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  ## Privilege Escalation Analysis                          │   │
+│  │  | PID | Process | Privilege | Signed | Exe Path |        │   │
+│  │  |-----|---------|-----------|--------|----------|        │   │
+│  │  ... (elevated + unsigned processes)                       │   │
+│  │                                                         │   │
+│  │  **N process(es) with privilege escalation risk**          │   │
+│  └───────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+*All diagrams are ASCII art representations of the NetworkSentinel architecture. Generated 2026-06-05.*
