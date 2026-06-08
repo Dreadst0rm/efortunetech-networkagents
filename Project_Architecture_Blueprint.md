@@ -1,791 +1,666 @@
 # NetworkSentinel — Project Architecture Blueprint
 
 > **Generated:** 2026-06-05
-> **Module:** `networksentinel` v0.4.0
-> **Language:** Go 1.26
-> **Architecture Pattern:** Layered Monolith with Cross-Platform Abstraction
+> **Module:** `networksentinel` (Go 1.26)
+> **Architecture:** Modular monolith with cross-platform plugin pattern
+> **Primary pattern:** Pipeline orchestration with platform-specific abstraction
+> **Technology:** Go + Wails (UI) + Miekg/DNS library
 
 ---
 
 ## 1. Architecture Detection and Analysis
 
-### Technology Stack
+### 1.1 Technology Stack
 
-| Category | Technology |
-|----------|-----------|
-| Language | Go 1.26 |
-| External dep | `github.com/miekg/dns` v1.1.62 (DNS resolution) |
-| Indirect deps | `golang.org/x/net`, `golang.org/x/sync`, `golang.org/x/sys`, `golang.org/x/mod`, `golang.org/x/tools` |
-| Platform APIs | Windows: `wmic`, `netstat`, PowerShell 5.1, WinToken P/Invoke |
-| Platform APIs | Linux: `/proc/PID/`, `journalctl`, `syslog` |
-| Platform APIs | macOS: `ps`, `lsof`, `dscacheutil`, `log` |
-| Build | `go build` with `//go:build` tags for cross-compilation |
-| CI/CD | GitHub Actions (Windows/Linux/macOS matrix + golangci-lint) |
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Language | Go 1.26 (compiled, statically linked) | Core logic |
+| CLI | `flag` standard library | Command-line interface |
+| UI Framework | Wails v2 (Go + HTML/CSS/JS bridge) | Desktop GUI |
+| DNS Library | `github.com/miekg/dns` | DNS protocol queries |
+| Platform APIs | `exec.Command` + PowerShell (Windows), `/proc` (Linux), `lsof`/`ps` (macOS) | OS-level data collection |
+| External APIs | ThreatFox, C2IntelFeeds (GitHub CSV), custom JSON feeds | Threat intelligence |
 
-### Detected Architectural Patterns
+### 1.2 Architectural Pattern
 
-1. **Layered Architecture** — Clear separation: orchestrator (main) → data collection (scanner) → analysis (risk assessment + threat intel) → output (report + alerting)
-2. **Platform Abstraction via Build Tags** — Shared types in `scanner.go`, `processinfo.go`, `dns/query.go`; platform-specific IO in `_windows.go`, `_linux.go`, `_darwin.go` files
-3. **Pipeline / Workflow Pattern** — 5-phase scan pipeline in `runScan()`: system info → scan → baseline → threat intel + risk → report
-4. **Heuristic Scoring System** — Multi-heuristic risk assessment (6 independent signals) with configurable thresholds
-5. **Composite Pattern** — `report.Data` bundles all data sources into a single struct for report generation
-6. **Cache Pattern** — `FeedCacheManager` with TTL-based caching for live threat intel feeds
+The project implements a **pipeline orchestration architecture** with **cross-platform plugin abstraction**:
+
+- **Pipeline:** `main.go` orchestrates a 5-step deterministic scan pipeline
+- **Platform abstraction:** Build tags (`//go:build windows`, `linux`, `darwin`) swap implementations without changing shared logic
+- **Dependency injection:** `config.Config` flows through all pipeline stages — no global state
+- **Data bundling:** `report.Data` aggregates all scan results into a single struct for report generators
 
 ---
 
 ## 2. Architectural Overview
 
-NetworkSentinel is a **single-binary, cross-platform security monitoring tool** that performs network process analysis to detect suspicious outbound connections, C2 communication, privilege escalation, and anomalous behavior.
+### 2.1 Core Design Principles
 
-### Guiding Principles
+1. **No global state** — Every configurable value flows through `*config.Config`; scanner, threat intel, and report modules receive it as parameters
+2. **Platform isolation** — Shared logic in `*.go` files; platform-specific code in `*_windows.go`, `*_linux.go`, `*_darwin.go`
+3. **Zero-allocation hot paths** — `AssessConnectionRisk` uses on-stack `[6]string` for heuristic reasons; `itoa()` avoids `fmt.Sprintf` allocation
+4. **Defensive configuration** — Invalid whitelist IPs are cleared at load time (not crashed); thresholds validated with minimums enforced
 
-1. **No CGo on Windows** — All platform-specific operations use `exec.Command` with native utilities (PowerShell, wmic, netstat, ps, lsof), never CGo
-2. **Cross-platform first** — Every subsystem has 3 implementations (Windows/Linux/macOS) via `//go:build` tags
-3. **Multi-heuristic risk scoring** — No single-factor detection; each connection is evaluated on 6 independent signals
-4. **Configuration-driven thresholds** — Risk levels are configurable; defaults are conservative
-5. **Zero external dependencies for core functionality** — Only `miekg/dns` for DNS resolution; all other data comes from OS utilities
+### 2.2 Architectural Boundaries
 
-### Architectural Boundaries
-
-- **`config`** — No internal dependencies; pure configuration loading and validation
-- **`baseline`** — No internal dependencies; JSON snapshot + diff
-- **`systeminfo`** — No internal dependencies; simple hostname/OS/IP gathering
-- **`version`** — No internal dependencies; single version string
-- **`alerting`** — No internal dependencies; pluggable notification interfaces
-- **`threatintel`** — No internal dependencies; in-memory IOC database + HTTP feed clients
-- **`processinfo`** — No internal dependencies; per-PID security context
-- **`scanner`** → depends on → `config`, `processinfo`, `threatintel`
-- **`dns`** → depends on → `config`, `scanner`, `github.com/miekg/dns`
-- **`report`** → depends on → `baseline`, `dns`, `processinfo`, `scanner`, `systeminfo`, `version`
-- **`main`** → depends on → everything (orchestrator)
+| Boundary | Enforcement |
+|----------|-------------|
+| Layer separation | `scanner` imports `config` + `processinfo` + `threatintel`; never imported by `config` |
+| Platform isolation | `//go:build` tags ensure only one OS implementation compiles per target |
+| Module independence | `c2update/` is a separate Go module (`go mod replace` directive), built independently |
+| UI isolation | `ui/` is a separate package; Wails `Bind` exposes only `App` methods to JavaScript |
 
 ---
 
 ## 3. Architecture Visualization
 
-### System Context (C4 Level 1)
+### 3.1 End-to-End Flow Diagram
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                    Host Machine                          │
-│                                                          │
-│  ┌─────────────────────────────────────────────────┐     │
-│  │           NetworkSentinel Binary                 │     │
-│  │                                                  │     │
-│  │  ┌──────────┐  ┌───────────┐  ┌───────────────┐ │     │
-│  │  │  Scanner │──▶│  DNS      │  │ ThreatIntel   │ │     │
-│  │  └──────────┘  └───────────┘  └───────────────┘ │     │
-│  │       │            │                │            │     │
-│  │  ┌──────────┐  ┌───────────┐  ┌───────────────┐ │     │
-│  │  │ Process  │  │ Report    │  │ Alerting      │ │     │
-│  │  │ Info     │  │ Generator │  │ Registry      │ │     │
-│  │  └──────────┘  └───────────┘  └───────────────┘ │     │
-│  │       │            │                              │     │
-│  │  ┌──────────┐  ┌───────────┐                     │     │
-│  │  │ Config   │  │ Baseline  │                     │     │
-│  │  └──────────┘  └───────────┘                     │     │
-│  └─────────────────────────────────────────────────┘     │
-│                                                          │
-│  External: OS utilities (wmic, netstat, ps, lsof, ...)   │
-│  External: DNS resolver (miekg/dns)                      │
-│  External: ThreatFox API, C2IntelFeeds (HTTP)            │
-└──────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                  main.go                                       │
+│                              (Orchestrator)                                    │
+│                                                                                 │
+│  CLI Parse ──► config.Load ──► [ daemon? runDaemon() : runScan() ]            │
+└────┬────────────────────────────────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           runScan() — 5-Step Pipeline                           │
+├──────────┬──────────────────────────────────────────────────────────────────────┤
+│          │                                                                      
+│  [1/5]   │ System Info                                                          │
+│          │ ┌─────────────────────────────────────────────────────────┐         
+│          │ │ systeminfo.Gather()                                       │         
+│          │ │   → os.Hostname() + runtime.GOOS + net.Interfaces()     │         
+│          │ └──────────┬──────────────────────────────────────────────┘         
+│          │            │ SystemDetails{hostname, OS, localIPs, MACs}           
+│          ▼            ▼                                                           │
+│  [2/5]   │ Scanner                                                                  │
+│          │ ┌─────────────────────────────────────────────────────────┐         
+│          │ │ scanner.ScanAll(cfg)                                    │         
+│          │ │   ├─ enumerateProcesses()    [platform-specific]        │         
+│          │ │   ├─ getNetConnections()     [platform-specific]        │         
+│          │ │   ├─ correlate PID → process name                       │         
+│          │ │   ├─ determineDirection()    [outbound/internal/in]     │         
+│          │ │   ├─ filter excluded (cfg)                              │         
+│          │ │   └─ processinfo.GetProcessInfo(pid) × unique PIDs     │         
+│          │ └───────┬────────────────────────────────────────────────┘         
+│          │         │ []Connection, []ProcessEntry, map[int]SecurityInfo       
+│          ▼         ▼                                                             │
+│  DNS     │ ResolveConnectionsDNS(conns, concurrency)                            │
+│          │   → Parallel worker pool (cfg.DNS.LookupConcurrency, default 10)     │
+│          │   → 2s timeout per lookup, deduplicates addresses                    │
+│          │   → Populates c.DNSName for resolved connections                     │
+│          ▼                                                                     │
+│  [DNS]   │ CaptureDNSQueries(cfg, hostname) [if cfg.DNSLog]                    │
+│          │   → Platform-specific DNS cache capture                              │
+│          │   → Cross-reference: ipToDomain → populate remaining DNSNames        │
+│          │   → Save to JSON file                                                │
+│          ▼                                                                     │
+│  [3/5]   │ Baseline                                                             │
+│          │ ┌─────────────────────────────────────────────────────────┐         
+│          │ │ baseline.Load(baseline.json)                            │         
+│          │ │ baseline.Diff(current, previous)                        │         
+│          │ │ baseline.Save(current)                                  │         
+│          │ └─────────────────────────────────────────────────────────┘         
+│          ▼                                                                     │
+│  [4/5]   │ Threat Intel + Risk Analysis                                         │
+│          │ ┌─────────────────────────────────────────────────────────┐         
+│          │ │ threatintel.NewThreatIntelDB()                          │         
+│          │ │   ├─ Built-in: KnownC2IPs (33 indicators)               │         
+│          │ │   ├─ External file: -feed flag → GetFeedIOCs()          │         
+│          │ │   ├─ Live: ThreatFox API → FeedCacheManager (1h TTL)    │         
+│          │ │   └─ C2IntelFeeds CSV: FetchAllIOCs() (~590 indicators)│         
+│          │ │                                                         │         
+│          │ │ scanner.AssessConnectionRiskWithThreatIntel()           │         
+│          │ │   ├─ 6 heuristics per connection                        │         
+│          │ │   │   1. Suspicious port (4444, 8080, 1337, etc.)       │         
+│          │ │   │   2. Suspicious process (cmd.exe, powershell, ...)  │         
+│          │ │   │   3. Transition state (SYN_SENT, TIME_WAIT, ...)    │         
+│          │ │   │   4. High IP connection count (>= threshold)        │         
+│          │ │   │   5. High process connection count (>= threshold)   │         
+│          │ │   │   6. Privilege escalation chain                     │         
+│          │ │   └─ Threat intel boost (confidence >= 80 → high)      │         
+│          │ └─────────────────────────────────────────────────────────┘         
+│          ▼                                                                     │
+│  [5/5]   │ Report + Alerting                                                    │
+│          │ ┌─────────────────────────────────────────────────────────┐         
+│          │ │ report.GenerateMarkdown(data, filename)                 │         
+│          │ │ report.GenerateJSON(data, filename)                     │         
+│          │ │ report.GenerateCSV(data, connCSV, riskCSV)              │         
+│          │ │                                                         │         
+│          │ │ alerting.Registry.Send() [if cfg.Alerting.Enabled]      │         
+│          │ │   ├─ WebhookNotifier (HTTP POST)                        │         
+│          │ │   └─ SyslogNotifier (stderr)                            │         
+│          │ └─────────────────────────────────────────────────────────┘         
+└──────────┴──────────────────────────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           Output Artifacts                                      │
+│                                                                                 │
+│  • network_sentinel_<hostname>_<timestamp>.md   (Markdown report)              │
+│  • network_sentinel_<hostname>_<timestamp>.json  (JSON report)                 │
+│  • network_sentinel_<hostname>_<timestamp>_connections.csv                    │
+│  • network_sentinel_<hostname>_<timestamp>_risks.csv                          │
+│  • baseline.json                               (Saved current state)          │
+│  • captured_dns_queries_<hostname>_<timestamp>.json (DNS capture)             │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Level (C4 Level 2)
+### 3.2 Module Dependency Graph
 
 ```
-┌───────────────────────────────────────────────────────────────────┐
-│                        main.go (Orchestrator)                     │
-│                                                                   │
-│  ┌───────────┐   ┌──────────┐   ┌───────────┐   ┌─────────────┐ │
-│  │ systeminfo│──▶│ scanner  │──▶│ dns       │   │ threatintel │ │
-│  └───────────┘   └──────────┘   └───────────┘   └─────────────┘ │
-│       │              │                │               │           │
-│       │         ┌──────────┐    ┌──────────┐    ┌────▼────────┐  │
-│       │         │processinfo│    │ baseline │    │ alerting    │  │
-│       │         └──────────┘    └──────────┘    └─────────────┘  │
-│       │              │                │           │               │
-│       └──────────────▼────────────────▼───────────┘               │
-│                          │                                        │
-│                    ┌───────────┐                                   │
-│                    │ report    │                                   │
-│                    └───────────┘                                   │
-└───────────────────────────────────────────────────────────────────┘
-```
-
-### Data Flow (Scan Pipeline)
-
-```
-[1] systeminfo.Gather()
-    ├── Hostname, OS, Local IPs
-    └── → output: *SystemDetails
-
-[2] scanner.ScanAll(cfg)
-    ├── enumerateProcesses()     → []ProcessEntry
-    ├── getNetConnections()      → []Connection
-    ├── Correlate(PID)           → Connection.Process, Connection.Direction
-    ├── Filter(excluded)         → filtered connections
-    └── processinfo.GetProcessInfo(PID) → map[int]Info
-
-    dns.ResolveConnectionsDNS()  → Connection.DNSName (populated)
-
-[3] baseline.Load("baseline.json")
-    ├── baseline.Diff()          → DiffResult{New, Gone, Unchanged}
-
-[4] threatintel.NewThreatIntelDB()
-    ├── AddIOCs(KnownC2IPs)      → 32 built-in indicators
-    ├── GetFeedIOCs(feedFile)    → external feed indicators
-    ├── cacheMgr.GetIOCs()       → live ThreatFox indicators
-    ├── c2Client.FetchAllIOCs()  → C2IntelFeeds CSV indicators
-    └── → ThreatIntelDB (all indicators merged)
-
-    scanner.AssessConnectionRiskWithThreatIntel()
-    ├── 6 heuristics per connection
-    │   ├── suspicious port
-    │   ├── suspicious process
-    │   ├── transition state
-    │   ├── high per-IP count
-    │   ├── high per-process count
-    │   └── privilege escalation chain
-    ├── threat intel match       → confidence-based risk upgrade
-    └── → []ConnectionRisk
-
-[5] report.GenerateMarkdown()/JSON()/CSV()
-    ├── Data{System, Connections, Processes, Risks, Security, Baseline, ...}
-    └── → Markdown, JSON, CSV files
-
-alerting.NewRegistry()
-    ├── WebhookNotifier          → HTTP POST
-    └── SyslogNotifier           → stdout
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                         Module Dependency Graph                                  │
+│                                                                                  │
+│  main.go ──┬──► config                                                          │
+│            ├──► systeminfo                                                     │
+│            ├──► scanner ──────────┬──► config                                  │
+│            │                       ├──► processinfo                             │
+│            │                       └──► threatintel                             │
+│            ├──► dns ───────────────┬──► scanner (Connection type)              │
+│            │                        └──► exec.Command (platform)               │
+│            ├──► baseline                                           │
+│            ├──► threatintel ────────┬──► net/http (standard library)           │
+│            │                        └──► encoding/csv                          │
+│            ├──► report ─────────────┬──► scanner (Connection, ProcessEntry,   │
+│            │                        │   ConnectionRisk, RiskLevel)             │
+│            │                        ├──► baseline (DiffResult, Entry)          │
+│            │                        ├──► processinfo (Info)                    │
+│            │                        ├──► systeminfo (SystemDetails)            │
+│            │                        ├──► dns (CaptureResult)                   │
+│            │                        └──► version (Version)                     │
+│            ├──► alerting                                            │
+│            └──► version                                             │
+│                                                                                  │
+│  ui/main.go (Wails GUI) ──┬──► All of the above (same core packages)           │
+│                           └──► ui/configmgr ──► config                          │
+│                                                                                  │
+│  c2update/main.go (standalone) ──► No internal dependencies                     │
+│                                    (Self-contained HTTP + CSV parsing)          │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 4. Core Architectural Components
 
-### 4.1 Scanner (`scanner/`)
+### 4.1 scanner — Core Scanning Engine
 
-**Purpose:** Core network and process enumeration engine with multi-heuristic risk assessment.
+**Purpose:** Orchestrate process enumeration, network connection capture, and risk assessment.
 
-**Internal Structure:**
-- `scanner.go` — Shared types (`Connection`, `ProcessEntry`, `ConnectionRisk`, `RiskLevel`), risk assessment logic (`AssessConnectionRisk`, `AssessConnectionRiskWithThreatIntel`), heuristic functions
-- `scanner_windows.go` — Windows: `wmic process` + `netstat -ano` parsing
-- `scanner_linux.go` — Linux: `/proc/net/tcp{,6}` + inode-to-PID mapping via `/proc/net/tcp`
-- `scanner_darwin.go` — macOS: `ps axco pid,comm` + `lsof -nP -i`
+**Internal structure:**
+- `scanner.go` — Shared types (`Connection`, `ProcessEntry`, `ConnectionRisk`, `RiskLevel`), heuristics, `ScanAll()`, `AssessConnectionRisk()`
+- `scanner_windows.go` — `wmic process` + `netstat -ano` enumeration
+- `scanner_linux.go` — `/proc/[pid]/comm` + `/proc/net/tcp{,6}` inode→PID mapping
+- `scanner_darwin.go` — `ps axco pid,comm` + `lsof -nP -i` enumeration
 
-**Key Patterns:**
-- **Platform abstraction** via `//go:build` tags with interface functions (`enumerateProcesses`, `getNetConnections`, `suspiciousProcsForOS`)
-- **Composite scoring** — 6 heuristics per connection, threshold-based risk level assignment
-- **O(1) lookups** — `suspiciousProcsLower` pre-computed map for process name checks; `cfg.IsWhitelistedIP` uses pre-built `ipIndex`
+**Key design patterns:**
+- Chain of 6 heuristics with on-stack `[6]string` for zero-alloc reason collection
+- Pre-computed lowercase map (`suspiciousProcsLower`) for O(1) case-insensitive process name lookups
+- `determineDirection()` classifies connections as outbound/internal/inbound based on IP classification
 
-**Interaction:**
-- Consumed by `main.go` (scan orchestration) and `report.go` (suspicious detection)
-- Depends on `config`, `processinfo`, `threatintel`
+**Extension points:**
+- Add new suspicious ports to `CommonReverseProxyPorts` map
+- Add new suspicious processes to `suspiciousProcsForOS()` per platform
+- Add new heuristic by incrementing the reasons array and adjusting threshold logic
 
----
+### 4.2 config — Configuration Management
 
-### 4.2 Process Info (`processinfo/`)
+**Purpose:** Load, validate, and provide O(1) lookup for thresholds, exclusions, whitelist, DNS, alerting, and threat intel settings.
 
-**Purpose:** Per-PID security context collection for privilege escalation detection.
+**Key patterns:**
+- `Defaults()` returns sane defaults (thresholds: 5 connections/min, critical=3, high=2)
+- `Load()` merges partial JSON with defaults using pointer-typed partial struct
+- `buildIPIndex()` pre-computes lowercase IP map for O(1) whitelist lookups
+- Invalid entries are cleared, not crashed (defensive validation)
 
-**Internal Structure:**
-- `processinfo.go` — Shared types (`Info`, `AdminPrivilegeLevel`, `IntegrityLevel`, `TokenElevationType`), cross-platform helpers (`IsSuspiciousPath`, `uidToUsername`)
-- `processinfo_windows.go` — Windows: PowerShell token elevation + `Get-AuthenticodeSignature`
-- `processinfo_linux.go` — Linux: `/proc/PID/exe` + `/proc/PID/status` + `/etc/passwd`
-- `processinfo_darwin.go` — macOS: `ps` + `which`
+### 4.3 threatintel — Threat Intelligence Database
 
-**Key Types:**
-```go
-type Info struct {
-    PID       int
-    Name      string
-    Username  string
-    ExePath   string
-    PrivLevel AdminPrivilegeLevel  // "elevated", "standard", "system"
-    IsSystem  bool
-    Integrity IntegrityLevel       // system/high/medium/low
-    Signer    string
-    IsSigned  bool
-    TokenElev TokenElevationType   // full/limited/default
-}
-```
+**Purpose:** In-memory IOC database with IP/domain lookup, populated from multiple sources.
 
-**Interaction:**
-- Consumed by `scanner.ScanAll()` → returns `map[int]Info`
-- Used in `report.GenerateMarkdown()` for privilege escalation section
+**Internal structure:**
+- `threatintel.go` — `ThreatIntelDB` with `ipv4`/`domain` maps, `IOC` type, `LookupConnection()`
+- `feeds.go` — Built-in `KnownC2IPs` (33 indicators), `ThreatFoxFeedClient`, `FeedCacheManager`, `FeedURLClient`
+- `loader.go` — JSON feed file loading (`LoadFeed()`, `GetFeedIOCs()`, `MergeFeed()`)
+- `c2intelfeeds.go` — CSV parser for C2IntelFeeds repository (4 feeds, ~590 indicators)
 
----
+**Key patterns:**
+- Case-insensitive lookups via `strings.ToLower()` keyed maps
+- TTL-based cache (`FeedCacheManager`) with stale-on-failure fallback
+- Generic CSV parser with `csvFeedConfig` struct parameterizes all 3 feed types
 
-### 4.3 DNS Resolution (`dns/`)
+### 4.4 processinfo — Per-Process Security Context
 
-**Purpose:** Domain name resolution and DNS cache capture for connection enrichment.
+**Purpose:** Gather privilege level, code signing status, integrity level, and execution path for each PID.
 
-**Internal Structure:**
-- `query.go` — DNS cache capture (platform-specific), domain suspicion analysis (`CheckDomain`), `CaptureResult`
-- `lookup.go` — Reverse DNS (PTR), forward DNS (A), parallel lookups, `ResolveConnectionsDNS`
-- `miekg_dns.go` — `DNSSession` wrapper around `miekg/dns`, parallel query execution
-- `query_windows.go` — Windows: `Get-DnsClientCache` PowerShell cmdlet
-- `query_linux.go` — Linux: `journalctl` + `syslog` parsing
-- `query_darwin.go` — macOS: `dscacheutil` + `log` command
+**Internal structure:**
+- `processinfo.go` — Shared types (`Info`, `AdminPrivilegeLevel`, `IntegrityLevel`, `TokenElevationType`), `IsPrivEscalation()`, `IsSuspiciousPath()`
+- `processinfo_windows.go` — PowerShell script for token elevation + Authenticode signature
+- `processinfo_linux.go` — `/proc/[pid]/status` + `/etc/passwd` for UID→username
+- `processinfo_darwin.go` — `ps -p <pid>` + `/usr/bin/which` + `/etc/passwd`
 
-**Key Patterns:**
-- **Shared session** — `dnsSession` package-level variable created in `init()`, reused across all lookups
-- **Parallel queries** — `QueryMultiplePTRs`, `QueryMultipleDomains` for concurrent DNS resolution
-- **Graceful degradation** — Fallback to connection-based DNS resolution when cache capture fails
+**Key patterns:**
+- `suspiciousPathPatterns` slice populated by each OS `init()` — single shared `IsSuspiciousPath()` function
+- Unified `IsPrivEscalation()` method is the single source of truth for scanner and report
 
-**Interaction:**
-- Consumed by `main.go` (DNS capture + cross-reference), `report.go` (DNS section)
-- Depends on `config`, `scanner`
+### 4.5 dns — DNS Resolution and Capture
 
----
+**Purpose:** Parallel reverse DNS lookup and platform-specific DNS cache capture.
 
-### 4.4 Threat Intelligence (`threatintel/`)
+**Internal structure:**
+- `lookup.go` — `LookupDomainsParallel()` worker pool, `ResolveConnectionsDNS()`, `CheckDomain()` (suspicious TLD + keyword detection)
+- `query.go` — `Query`, `CaptureResult` types, `SaveCaptureResult()`, `DNSQueriesToIPMap()`
+- `query_windows.go` — `Get-CimInstance MSFT_DNSClientCache` via PowerShell
+- `query_linux.go` — `journalctl -u systemd-resolved` + `/var/log/syslog` fallback
+- `query_darwin.go` — `dscacheutil -q host` + `log show` fallback
 
-**Purpose:** In-memory IOC database with multi-source indicator aggregation.
+**Key patterns:**
+- Channel-based worker pool with configurable concurrency
+- 2s context timeout per lookup prevents DNS hangs
+- Address deduplication before fan-out avoids redundant lookups
 
-**Internal Structure:**
-- `threatintel.go` — `ThreatIntelDB` (in-memory IOC store), `IOC` struct, IP/domain lookup
-- `feeds.go` — `KnownC2IPs` (32 built-in indicators), `ThreatFoxFeedClient`, `FeedCacheManager`, `FeedURLClient`
-- `loader.go` — JSON feed file loading
+### 4.6 baseline — Snapshot Diffing
 
-**Key Patterns:**
-- **Composite data source** — Built-in + file feed + live API + CSV feed, all merged into single DB
-- **Cache with TTL** — `FeedCacheManager` with mutex-protected cache, stale-fallback-on-error
-- **Confidence-based escalation** — IOC confidence ≥90 → critical; ≥80 → high (if not already higher)
+**Purpose:** Save connection snapshots and compare against previous baselines to detect new/gone connections.
 
----
+**Key patterns:**
+- Key-based comparison: `PID:RemoteAddr:RemotePort` unique key per connection
+- `Diff()` builds bidirectional maps to classify entries as New/Gone/Unchanged
+- JSON serialization for persistence
 
-### 4.5 Report Generator (`report/`)
+### 4.7 report — Report Generation
 
-**Purpose:** Multi-format report generation from scan data.
+**Purpose:** Generate Markdown, JSON, and CSV reports from scan data.
 
-**Internal Structure:**
-- `report.go` — Single file (572 lines): `GenerateMarkdown`, `GenerateJSON`, `GenerateCSV`, `countFindings`, `Summarize`
+**Key patterns:**
+- `report.Data` bundles all scan results into a single struct
+- `strings.Builder` for efficient Markdown construction
+- `sanitizeMarkdown()` escapes `|` and backticks for safe table rendering
+- `countFindings()` aggregates statistics from connections + risks + privilege escalation
 
-**Key Data Structure:**
-```go
-type Data struct {
-    System      *systeminfo.SystemDetails
-    Connections []scanner.Connection
-    Processes   []scanner.ProcessEntry
-    Risks       []scanner.ConnectionRisk
-    Security    map[int]processinfo.Info
-    Baseline    baseline.DiffResult
-    Whitelist   []WhitelistedIP
-    DNSQueries  *dns.CaptureResult
-}
-```
+### 4.8 alerting — Alert Delivery
 
-**Output Formats:**
-- **Markdown** — Human-readable report with tables for each section
-- **JSON** — Full structured data with `Findings` summary
-- **CSV** — Separate files for connections and risks
+**Purpose:** Send alerts to configured notifiers (webhook, syslog/stdout).
 
----
+**Key patterns:**
+- `Notifier` interface with `Name()` + `Send(alert)` — extensible for Slack, PagerDuty, etc.
+- `Registry` broadcasts to all registered notifiers
+- `WebhookNotifier` HTTP POST with JSON payload
+- `SyslogNotifier` stderr output (cross-platform syslog simulation)
 
-### 4.6 Configuration (`config/`)
+### 4.9 systeminfo — System Discovery
 
-**Purpose:** Configuration loading, validation, and O(1) whitelist lookup.
+**Purpose:** Gather OS-level metadata (hostname, OS platform, local IPs, MAC addresses).
 
-**Key Patterns:**
-- **Defaults + partial merge** — `Defaults()` provides built-in values; `Load()` merges JSON overlay
-- **Pre-computed index** — `buildIPIndex()` creates `ipIndex` map for O(1) whitelist lookups
-- **Input validation** — `net.ParseIP()` rejects invalid whitelist entries at load time; threshold clamping
+**Key patterns:**
+- Pure Go standard library calls — no platform-specific implementation needed
+- Filters loopback interfaces and non-up interfaces
 
----
+### 4.10 c2update — Standalone C2Feed Updater
 
-### 4.7 Alerting (`alerting/`)
+**Purpose:** Independent binary for scheduled C2IntelFeeds CSV updates.
 
-**Purpose:** Pluggable alert delivery system.
+**Key patterns:**
+- Separate Go module with `replace` directive for `threatintel` types
+- CLI flags for selective feed fetching (`-30day`, `-domain`, `-ipport`)
+- Deduplication via `seen` map
+- JSON envelope output with metadata
 
-**Key Types:**
-```go
-type Registry struct {
-    notifiers []Notifier
-}
+### 4.11 ui — Desktop GUI (Wails)
 
-type Notifier interface {
-    Send(alert Alert) error
-}
-```
+**Purpose:** Cross-platform desktop application wrapping the core scanning logic.
 
-**Implementations:**
-- `WebhookNotifier` — HTTP POST to configurable URL
-- `SyslogNotifier` — stdout with syslog-like formatting
-
----
-
-### 4.8 Baseline (`baseline/`)
-
-**Purpose:** Connection snapshot save/load and diff for change tracking.
-
-**Key Functions:**
-- `Save(filename, hostname, entries)` — JSON snapshot
-- `Load(filename)` — JSON snapshot load
-- `Diff(current, previous)` — `DiffResult{New, Gone, Unchanged, BaselineAge}`
-
----
-
-### 4.9 System Info (`systeminfo/`)
-
-**Purpose:** Simple hostname, OS platform, and local IP gathering.
-
----
-
-### 4.10 C2 Updater (`c2update/`)
-
-**Purpose:** Standalone binary for scheduled C2 indicator feed refresh.
-
-**Flow:** Parse CLI → Fetch CSV feeds from C2IntelFeeds GitHub → Parse/deduplicate → Write JSON envelope
+**Key patterns:**
+- Wails v2 framework (Go backend + HTML/CSS/JS frontend via `embed.FS`)
+- `App` struct encapsulates scan state (`lastScan`, `lastReport`, `lastBaseline`)
+- Response types (`ScanResult`, `ConnectionResp`, `RiskResp`, etc.) for JSON serialization to frontend
+- `configmgr` package handles config save/export/snapshot operations
+- Reuses all core packages (`scanner`, `threatintel`, `baseline`, `report`, `dns`, `systeminfo`)
 
 ---
 
 ## 5. Architectural Layers and Dependencies
 
-### Layer Map
+### 5.1 Layer Map
 
-| Layer | Packages | Role |
-|-------|----------|------|
-| **Orchestrator** | `main` | Pipeline coordination, CLI, daemon mode |
-| **Data Collection** | `scanner`, `processinfo`, `systeminfo` | OS-level data gathering |
-| **Enrichment** | `dns` | DNS resolution, cache capture |
-| **Analysis** | `threatintel` | IOC matching, risk scoring |
-| **Output** | `report`, `alerting` | Report generation, notifications |
-| **Support** | `config`, `baseline`, `version` | Configuration, snapshots, version |
+| Layer | Packages | Responsibility |
+|-------|----------|----------------|
+| Orchestration | `main.go`, `ui/main.go` | CLI flag parsing, pipeline coordination, daemon loop |
+| Data Collection | `scanner`, `systeminfo`, `dns` | Process enumeration, connection capture, DNS resolution |
+| Security Context | `processinfo` | Per-PID privilege, signing, integrity data |
+| Intelligence | `threatintel` | IOC database, feed clients, external data aggregation |
+| Analysis | `scanner` (heuristics), `dns` (domain analysis) | Risk assessment, suspicious domain detection |
+| Persistence | `baseline`, `ui/configmgr` | Snapshot diffing, config management |
+| Output | `report`, `alerting` | Report generation, alert delivery |
+| Metadata | `version` | Version string |
 
-### Dependency Rules
+### 5.2 Dependency Rules
 
 ```
-main → config, scanner, processinfo, threatintel, dns, report, baseline, systeminfo, version, alerting
-
-scanner → config, processinfo, threatintel
-
-report → baseline, dns, processinfo, scanner, systeminfo, version
-
-dns → config, scanner, miekg/dns
-
-threatintel → (none internal)
-
-processinfo → (none internal)
-
-config → (none internal)
-
-baseline → (none internal)
-
-alerting → (none internal)
-
-systeminfo → (none internal)
-
-version → (none internal)
+main.go ──imports──► config, systeminfo, scanner, dns, threatintel, baseline, report, alerting, version
+scanner ──imports──► config, processinfo, threatintel
+report ──imports──► scanner, baseline, processinfo, systeminfo, dns, version
+dns ──imports──► scanner (Connection type only)
+config ──imports──► (none — leaf module)
+threatintel ──imports──► (none — leaf module)
+baseline ──imports──► (none — leaf module)
+processinfo ──imports──► (none — leaf module)
+alerting ──imports──► (none — leaf module)
+systeminfo ──imports──► (none — leaf module)
 ```
 
-**No circular dependencies.** Pure layered architecture with support packages at the bottom.
+**No circular dependencies.** All dependencies flow inward toward leaf modules.
 
 ---
 
 ## 6. Data Architecture
 
-### Domain Model
+### 6.1 Core Domain Models
+
+| Model | Key Fields | Used By |
+|-------|-----------|---------|
+| `Connection` | PID, Process, Local/Remote Addr:Port, Protocol, State, Direction, DNSName | scanner, report, dns, ui |
+| `ProcessEntry` | PID, Name | scanner, report, ui |
+| `ConnectionRisk` | Connection + RiskLevel, RiskReasons, IsSuspicious, IsWhitelisted | scanner, report, ui |
+| `RiskLevel` | `"low"` \| `"medium"` \| `"high"` \| `"critical"` | scanner, report |
+| `Info` (processinfo) | PID, Name, Username, ExePath, PrivLevel, IsSigned, Integrity | scanner, report, ui |
+| `IOC` | Indicator, IndicatorType, MalwareFamily, Confidence, Country, Tags, Source | threatintel, c2update, ui |
+| `ThreatIntelDB` | ipv4 map, domain map | scanner, main, ui |
+| `Config` | Thresholds, Excluded, Whitelist, DNS, Alerting, ThreatIntel | scanner, main, ui |
+| `Data` (report) | System, Connections, Processes, Risks, Security, Baseline, Whitelist, DNSQueries | report |
+| `Findings` | Outbound, Endpoints, Suspicious ports/procs, Risk counts, PrivEsc, Whitelisted | report, ui |
+| `Snapshot` | Timestamp, Hostname, Entries | baseline |
+| `DiffResult` | New, Gone, Unchanged, BaselineAge | baseline, main, ui |
+| `Alert` | Timestamp, Level, Message, Details | alerting, main |
+| `Notifier` | interface { Name(), Send() } | alerting |
+
+### 6.2 Data Flow
 
 ```
-Connection {
-    ProcessID  int
-    Process    string
-    Executable string
-    LocalAddr  string
-    LocalPort  int
-    RemoteAddr string
-    RemotePort int
-    Protocol   string
-    State      string
-    Direction  string    // "outbound" | "inbound" | "internal" | "unknown"
-    DNSName    string    // resolved domain name
-}
-
-ProcessEntry {
-    PID  int
-    Name string
-}
-
-ConnectionRisk {
-    Connection
-    RiskLevel     RiskLevel  // "low" | "medium" | "high" | "critical"
-    RiskReasons   []string
-    IsSuspicious  bool
-    IsWhitelisted bool
-}
-
-Info (processinfo) {
-    PID       int
-    Name      string
-    Username  string
-    ExePath   string
-    PrivLevel AdminPrivilegeLevel
-    IsSystem  bool
-    Integrity IntegrityLevel
-    Signer    string
-    IsSigned  bool
-    TokenElev TokenElevationType
-}
-
-IOC {
-    Indicator     string
-    IndicatorType string  // "ipv4" | "domain" | "url"
-    MalwareFamily string
-    FirstSeen     time.Time
-    LastSeen      time.Time
-    Country       string
-    Confidence    int      // 0-100
-    Tags          []string
-    Source        string
-    Status        string
-    Port          int
-}
+Raw OS data (wmic/netstat, /proc, lsof)
+    │
+    ▼
+Connection[] + ProcessEntry[] + SecurityInfo[]
+    │
+    ├──► DNS resolution ──► DNSName populated
+    ├──► Threat intel lookup ──► RiskLevel + RiskReasons
+    ├──► Baseline comparison ──► DiffResult
+    └──► Report.Data ──► Markdown/JSON/CSV + alerts
 ```
-
-### Data Transformation
-
-1. **Raw OS output** → `Connection` / `ProcessEntry` (scanner parsers)
-2. **Connection + Process correlation** → enriched `Connection` (PID → process name)
-3. **Connection + DNS** → `Connection.DNSName` populated
-4. **Connection + heuristics + threat intel** → `ConnectionRisk`
-5. **All data** → `report.Data` → Markdown/JSON/CSV
-
-### Caching
-
-- **DNS session** — Package-level `dnsSession` reused across all lookups
-- **Threat intel cache** — `FeedCacheManager` with 1-hour TTL, mutex-protected
 
 ---
 
-## 7. Cross-Cutting Concerns Implementation
+## 7. Cross-Cutting Concerns
 
-### Error Handling & Resilience
+### 7.1 Configuration Management
 
-- **Graceful degradation** — Every external call (DNS, threat intel feeds, baseline load) has error handling that logs a warning but continues
-- **Fallback patterns** — `FeedCacheManager.GetIOCs()` returns stale cache on fetch error; DNS fallback to connection-based resolution
-- **No retry logic** — Single-attempt calls with error logging; appropriate for short-lived diagnostic tool
+- **Source:** JSON config file (`config.json` by default), CLI flags (`-config`, `-daemon`, `-feed`, `-output`)
+- **Validation:** Thresholds validated for non-negativity and ordering (critical >= high); whitelist IPs validated with `net.ParseIP()`
+- **Defaults:** `config.Defaults()` provides sane values; partial JSON merges on top
+- **UI snapshots:** `ui/configmgr` provides named snapshots with export/import
 
-### Configuration Management
+### 7.2 Error Handling and Resilience
 
-- **JSON config** — `config.json` with optional overlay on built-in defaults
-- **CLI flags** — `-config`, `-output`, `-daemon`, `-feed`, `-h`
-- **Validation** — Threshold clamping, IP validation at load time, concurrency defaults
-- **Feature toggles** — `dns_log`, `alerting.enabled`, `threat_intel.enabled`
+- **Graceful degradation:** DNS failures logged as warnings, not fatal; threat intel fetch failures don't stop scan
+- **Cache fallback:** `FeedCacheManager` returns stale cache on network errors
+- **Defensive parsing:** CSV parser skips malformed rows; wmic output handles variable blank line spacing
+- **Timeout enforcement:** DNS lookups have 2s context timeout; HTTP requests have configurable timeouts
 
-### Logging & Monitoring
+### 7.3 Logging and Monitoring
 
-- **Stdout console output** — Progress indicators (`[1/5]`, `[2/5]`), summary statistics
-- **Warning logging** — `log.Printf` for non-fatal errors (feed fetch failures, baseline save errors)
-- **No structured logging** — Simple `log` package usage; no log files or external aggregation
+- **Stdout:** Progress messages during scan (`fmt.Println()` with `[N/5]` step markers)
+- **Stderr:** Alert notifications (`SyslogNotifier`), config load warnings
+- **Report:** Comprehensive Markdown/JSON/CSV with all findings
+- **DNS capture:** Optional JSON file with queried domains
+
+### 7.4 Validation
+
+- **Input validation:** `config.Load()` validates all user-provided values at load time
+- **IP classification:** `scanner.IsPrivateIP()` handles IPv4 ranges, IPv6 loopback/link-local/multicast
+- **Whitelist lookup:** Pre-computed index with O(1) lookup; linear scan fallback for edge cases
 
 ---
 
 ## 8. Service Communication Patterns
 
-### External APIs
+### 8.1 External API Integration
 
-| Service | Protocol | Purpose | Resilience |
-|---------|----------|---------|------------|
-| ThreatFox API | HTTP GET | Live C2 indicators | Timeout (10s), cache with TTL, stale fallback |
-| C2IntelFeeds | HTTP GET (CSV) | Cobalt Strike indicators | Timeout, error logged, continues |
-| Custom feed URL | HTTP GET | User-provided IOC feed | Timeout, error logged, continues |
+| Service | Protocol | Format | Auth | Retry Strategy |
+|---------|----------|--------|------|----------------|
+| ThreatFox | HTTPS GET | JSON | Optional API key | 10s timeout, stale cache fallback |
+| C2IntelFeeds | HTTPS GET | CSV | None | 10s timeout, logged warning on failure |
+| Custom feed URL | HTTPS GET | JSON | None | 10s timeout, logged warning |
 
-### Internal Communication
+### 8.2 Alert Delivery
 
-- **Direct function calls** — No event bus, no message queues, no async channels between packages
-- **Data passing** — All data passed explicitly through function parameters
-- **Daemon mode** — `time.Ticker` + `context.WithCancel` for periodic scan loops
+| Notifier | Protocol | Payload |
+|----------|----------|---------|
+| Webhook | HTTP POST | `{"timestamp","level","message","details"}` |
+| Syslog | stderr | `[timestamp] [LEVEL] stdout: message: details` |
 
 ---
 
-## 9. Go-Specific Architectural Patterns
+## 9. Technology-Specific Patterns
 
-### Build Tag Pattern
+### 9.1 Go-Specific Architectural Patterns
 
-```go
-//go:build windows
-
-package scanner
-```
-
-Each platform-specific file implements the same interface functions:
-- `enumerateProcesses() ([]ProcessEntry, error)`
-- `getNetConnections(connSet map[int]*Connection) ([]Connection, error)`
-- `suspiciousProcsForOS() map[string]struct{}`
-
-### Package-Level Initialization
-
-```go
-var dnsSession *DNSSession
-
-func init() {
-    s, err := NewDNSSession()
-    if err != nil {
-        dnsSession = nil
-    } else {
-        dnsSession = s
-    }
-}
-```
-
-Shared resources created once at package init, reused across all operations.
-
-### Pre-computed Indexes for Performance
-
-```go
-var suspiciousProcsLower map[string]struct{}
-
-func init() {
-    suspiciousProcsLower = make(map[string]struct{})
-    for n := range suspiciousProcsForOS() {
-        suspiciousProcsLower[strings.ToLower(n)] = struct{}{}
-    }
-}
-```
-
-O(1) case-insensitive process name lookups instead of O(n) linear scans.
-
-### Stack-Allocated Buffers
-
-```go
-var reasons [6]string
-count := 0
-// ... reasons[count] = "..."
-count++
-```
-
-Avoids heap allocation in hot path; max 6 heuristics.
+- **Build tags for platform abstraction:** `//go:build windows`, `linux`, `darwin` swap implementations at compile time
+- **`init()` for platform-specific data injection:** `suspiciousPathPatterns` slice populated by OS-specific `init()` functions
+- **Pre-computed lookup maps:** `suspiciousProcsLower` built in `init()` for O(1) case-insensitive process name checks
+- **On-stack arrays for zero allocation:** `[6]string` in `AssessConnectionRisk` avoids heap when no heuristics fire
+- **`strings.Builder` for report generation:** Efficient string construction without intermediate allocations
+- **Embed for UI assets:** `//go:embed all:frontend/dist` bundles frontend assets into the Go binary
 
 ---
 
 ## 10. Implementation Patterns
 
-### Multi-Heuristic Scoring
+### 10.1 Interface Design
 
-Each outbound connection is evaluated on 6 independent signals:
+- **`Notifier` interface:** Minimal contract (`Name()` + `Send(alert)`) enables adding Slack, PagerDuty, email without modifying existing code
+- **`suspiciousProcsForOS()` function:** Returns map per platform; shared code calls via `SuspiciousProcessNamesList()`
 
-```
-count = 0
-if suspicious_port → count++
-if suspicious_process → count++
-if transition_state → count++
-if ip_count >= threshold → count++
-if process_count >= threshold → count++
-if priv_escalation → count++
+### 10.2 Service Composition
 
-switch count:
-    >= critical_threshold → critical
-    >= high_threshold     → high
-    == 1                 → medium
-    == 0                 → skip (no risk)
-```
+- **`AssessConnectionRiskWithThreatIntel()`:** Wraps `AssessConnectionRisk()`, then enriches results with threat intel matches
+- **`FeedCacheManager`:** Wraps `ThreatFoxFeedClient`, adds TTL caching and stale-on-failure semantics
 
-### Threat Intel Confidence Escalation
+### 10.3 Generic CSV Parser
 
-```
-if ioc.Confidence >= 90:
-    risk_level = RiskCritical
-elif ioc.Confidence >= 80:
-    if risk_level in (RiskLow, RiskMedium):
-        risk_level = RiskHigh
-```
+`parseCSVFeed()` in `c2intelfeeds.go` uses a `csvFeedConfig` struct to parameterize:
+- Column count
+- Header skip
+- Confidence column index
+- Tags, source, port column indices
 
-### Platform-Independent Interface
-
-```go
-// In scanner.go (shared):
-func enumerateProcesses() ([]ProcessEntry, error)  // declared, implemented per-OS
-func getNetConnections(map[int]*Connection) ([]Connection, error)  // declared, implemented per-OS
-func suspiciousProcsForOS() map[string]struct{}  // declared, implemented per-OS
-```
-
-The shared file references these functions; the build tag files provide implementations.
+Three feed types (IP, IP+port, domain) each delegate to the same parser with different configs, eliminating ~90 lines of duplicated parsing logic.
 
 ---
 
 ## 11. Testing Architecture
 
-### Test Coverage
+| Package | Test File | Approach |
+|---------|-----------|----------|
+| `scanner` | `scanner_test.go`, `scanner_bench_test.go` | Unit tests + benchmarks |
+| `config` | `config_test.go` | Config loading, validation, whitelist lookup |
+| `dns` | `lookup_test.go`, `query_test.go` | DNS resolution, domain analysis |
+| `threatintel` | `threatintel_test.go`, `loader_test.go` | IOC database, feed loading |
+| `baseline` | `baseline_test.go` | Snapshot save/load/diff |
+| `report` | `report_test.go` | Report generation |
+| `alerting` | `alerting_test.go` | Alert delivery |
+| `processinfo` | `processinfo_test.go` | Security context gathering |
+| `version` | `version_test.go` | Version string |
 
-| Package | Test File | Lines | Coverage |
-|---------|-----------|-------|----------|
-| `scanner` | `scanner_test.go` | 948 | Core logic, heuristics, direction detection, risk assessment |
-| `report` | `report_test.go` | 839 | Report generation for all formats |
-| `threatintel` | `loader_test.go` | 564 | Feed file loading, JSON parsing |
-| `threatintel` | `threatintel_test.go` | 203 | IOC database, lookups |
-| `processinfo` | `processinfo_test.go` | 426 | Privilege levels, path detection |
-| `config` | `config_test.go` | 288 | Config loading, validation, whitelist |
-| `dns` | `lookup_test.go` | 178 | DNS resolution, parallel lookups |
-| `dns` | `query_test.go` | 73 | Domain suspicion analysis |
-| `baseline` | `baseline_test.go` | 113 | Snapshot save/load, diff |
-| `alerting` | `alerting_test.go` | 45 | Registry, notifier sending |
-| `systeminfo` | `systeminfo_test.go` | 33 | Hostname, OS, IPs |
-| `version` | `version_test.go` | 11 | Version string |
-
-**Total:** ~5,300 lines of tests across 12 test files.
-
-### Test Strategy
-
-- **Unit tests** — All packages have unit tests with table-driven tests
-- **No integration tests** — Tests avoid real OS calls; use mocks/tables for scanner/dns
-- **Benchmarks** — `scanner_bench_test.go`, `dns/lookup_test.go` for performance validation
-- **CI matrix** — Tests run on Windows/Linux/macOS across Go 1.21–1.23
+**Coverage command:** `go test ./... -coverprofile=c.out && go tool cover -func c.out`
 
 ---
 
 ## 12. Deployment Architecture
 
-### Deployment Targets
+### 12.1 Build Targets
 
-| Platform | Binary | Size | Build Command |
-|----------|--------|------|---------------|
-| Windows | `networksentinel.exe` | ~10 MB | `go build -o networksentinel.exe .` |
-| Linux | `networksentinel_linux` | ~3.8 MB | `GOOS=linux go build -tags netgo -o networksentinel_linux .` |
-| macOS | `networksentinel_darwin` | ~4 MB | `GOOS=darwin go build -tags netgo -o networksentinel_darwin .` |
+| Target | Command | Output |
+|--------|---------|--------|
+| Windows | `go build -o networksentinel.exe .` | `networksentinel.exe` |
+| Linux | `GOOS=linux go build -o networksentinel .` | `networksentinel` |
+| macOS | `GOOS=darwin go build -o networksentinel .` | `networksentinel` |
+| UI (Windows) | `wails build` | Native app with embedded frontend |
+| UI (Linux) | `wails build` | Native app with embedded frontend |
 
-### Deployment Models
+### 12.2 Scheduled Updates
 
-1. **Single-shot scan** — Default mode; runs once and exits
-2. **Daemon mode** — `--daemon <seconds>`; continuous periodic scanning
-3. **Scheduled C2 update** — `c2update.service` + `c2update.timer` (systemd); `c2update.ps1` (Windows Task Scheduler)
-4. **Standalone binary** — Self-contained; no runtime dependencies beyond OS utilities
+```bash
+# Linux/macOS cron (every 6 hours)
+0 */6 * * * /path/to/c2update.sh -output /path/to/c2intel_feeds.json >> /var/log/c2update.log 2>&1
 
-### Environment Adaptations
+# Windows Task Scheduler (daily at 2 AM)
+schtasks /create /tn "C2IntelFeedsUpdate" /tr "powershell -ExecutionPolicy Bypass -File c2update.ps1" /sc daily /st 02:00
 
-- **No environment variables** — All configuration via `config.json` and CLI flags
-- **Platform-specific paths** — Baseline file `baseline.json` in working directory; no fixed paths
-- **No containerization** — Designed for direct host execution; no Dockerfile
+# systemd timer (6h interval with 30min jitter)
+sudo cp c2update.timer c2update.service /etc/systemd/system/
+sudo systemctl enable --now c2update.timer
+```
+
+### 12.3 Daemon Mode
+
+```bash
+# Continuous scanning every 300 seconds
+./networksentinel -daemon 300
+```
 
 ---
 
 ## 13. Extension and Evolution Patterns
 
-### Adding a New Platform
+### 13.1 Adding a New Suspicious Port
 
-1. Create `scanner_<os>.go` implementing `enumerateProcesses()`, `getNetConnections()`, `suspiciousProcsForOS()`
-2. Create `processinfo_<os>.go` implementing `GetProcessInfo(pid int) (Info, error)`
-3. Create `query_<os>.go` implementing `CaptureDNSQueries(cfg *config.Config, hostname string) (*CaptureResult, error)`
-4. Add to build tags: `//go:build <os>`
+1. Add port number to `CommonReverseProxyPorts` map in `scanner/scanner.go`
+2. No code changes needed — `IsSuspiciousPort()` already iterates the map
 
-### Adding a New Heuristic
+### 13.2 Adding a New Suspicious Process (per platform)
 
-1. Add detection logic in `scanner.AssessConnectionRisk()` → `reasons[count] = "..."`
-2. Increment `count`
-3. No threshold changes needed if new heuristic is binary (fires or doesn't)
-4. If heuristic produces a score, may need threshold adjustments
+1. Add process name to `suspiciousProcsForOS()` in the platform-specific file (`scanner_windows.go`, `_linux.go`, or `_darwin.go`)
+2. No shared code changes — `init()` pre-computes the lowercase map automatically
 
-### Adding a New Alert Channel
+### 13.3 Adding a New Heuristic
 
-1. Implement `alerting.Notifier` interface:
+1. Add the check in `AssessConnectionRisk()` before the risk level assignment
+2. Increment the reasons array usage (max 6 heuristics currently)
+3. If more than 6 heuristics needed, switch from `[6]string` to `make([]string, 0, 10)`
+
+### 13.4 Adding a New Alert Notifier
+
+1. Implement `Notifier` interface (`Name()` + `Send(alert)`)
+2. Register in `main.go` or `ui/main.go` via `reg.AddNotifier(&MyNotifier{})`
+
+### 13.5 Adding a New Threat Intel Feed Source
+
+1. Create a new feed client type (like `ThreatFoxFeedClient`) that returns `[]IOC`
+2. Add fetch logic in `main.go`'s `runScan()` before `AssessConnectionRiskWithThreatIntel()`
+3. Call `tiDB.AddIOCs(newIOCs)` to merge into the database
+
+### 13.6 Adding a New Report Format
+
+1. Add a new function `GenerateXXX(data Data, filename string) error` in `report/report.go`
+2. Call it from `main.go`'s `runScan()` alongside existing report generators
+
+---
+
+## 14. Blueprint for New Development
+
+### 14.1 Development Workflow
+
+**For a new feature (e.g., new heuristic):**
+
+1. **Shared types** → Add to `scanner.go` (if new types needed)
+2. **Platform-specific logic** → Add to `scanner_windows.go`, `_linux.go`, `_darwin.go` with build tags
+3. **Heuristic integration** → Add to `AssessConnectionRisk()` in `scanner.go`
+4. **Report integration** → Add to `GenerateMarkdown()` in `report/report.go`
+5. **Tests** → Add to `scanner_test.go`, `report_test.go`
+6. **Build** → `go build -o networksentinel.exe .`
+7. **Test** → `go test ./...`
+
+### 14.2 Component Creation Templates
+
+**New platform-specific file:**
 ```go
-type MyNotifier struct{}
+//go:build windows (or linux, darwin)
 
-func (n *MyNotifier) Send(alert alerting.Alert) error {
-    // send alert
+package scanner
+
+func enumerateProcesses() ([]ProcessEntry, error) {
+    // Platform-specific implementation
+}
+
+func getNetConnections(connSet map[int]*Connection) ([]Connection, error) {
+    // Platform-specific implementation
+}
+
+func suspiciousProcsForOS() map[string]struct{} {
+    return map[string]struct{}{
+        "your-process": {},
+    }
+}
+```
+
+**New alert notifier:**
+```go
+package alerting
+
+type MyNotifier struct {
+    URL string
+}
+
+func (m *MyNotifier) Name() string { return "my-notifier" }
+
+func (m *MyNotifier) Send(alert Alert) error {
+    // Implementation
     return nil
 }
 ```
-2. Register in `main.go`:
-```go
-reg.AddNotifier(&MyNotifier{})
-```
 
-### Adding a New Feed Source
+### 14.3 Common Pitfalls
 
-1. Create feed client in `threatintel/feeds.go` (similar to `ThreatFoxFeedClient`)
-2. Instantiate and call in `main.go` `runScan()`:
-```go
-myClient := NewMyFeedClient(timeout)
-myIOCs, _ := myClient.FetchIOCs()
-tiDB.AddIOCs(myIOCs)
+| Pitfall | Prevention |
+|---------|------------|
+| Modifying slice in range loop | Use `for i := range conns { c := &conns[i] }` to modify elements |
+| DNS timeout without context | Always wrap `net.Resolver` with `context.WithTimeout(2s)` |
+| Invalid whitelist IP crash | Use `net.ParseIP()` validation at load time; clear invalid entries |
+| Markdown table injection | Escape `|` and backticks with `sanitizeMarkdown()` |
+| Extra `)` in `strings.Builder` | Verify after editing — easy to double-parenthesize |
+| go.mod patch version | Use `go 1.26` not `go 1.26.2` in `go.mod` |
+| IPv6 bracket notation | Strip `[` and `]` before IP prefix matching |
+| wmic blank line spacing | Use emit-on-both-fields strategy, not blank-counting |
+| Global state | Never use package-level variables for config; pass `*config.Config` |
+| CGo on Windows | Use `exec.Command` + PowerShell; never `CGO_ENABLED=1` |
+
+---
+
+## 15. Architecture Governance
+
+### 15.1 Consistency Enforcement
+
+- **Build tags:** Platform-specific files must use correct `//go:build` tags
+- **No global state:** Enforced by project rules in `AGENTS.md`
+- **Typed constants:** Use `RiskLevel` string type, not bare strings
+- **Explicit interfaces:** `Notifier` interface, not ad-hoc function signatures
+
+### 15.2 Automated Checks
+
+```bash
+# Build verification (required after every code change)
+go build -o networksentinel.exe .
+
+# Test suite (all packages must pass)
+go test ./...
+
+# Per-function coverage
+go test ./... -coverprofile=c.out && go tool cover -func c.out
 ```
 
 ---
 
-## 14. Architecture Governance
-
-### Consistency Mechanisms
-
-1. **Build tag enforcement** — Go compiler enforces platform abstraction; missing OS file causes build failure
-2. **CI/CD matrix** — Tests run on all 3 platforms; cross-compilation verified
-3. **golangci-lint** — Static analysis in CI
-4. **AGENTS.md** — Development guidelines and lessons learned in repo root
-
-### Documentation Practices
-
-- **README.md** — User-facing documentation
-- **Platform guides** — `windows-guide.md`, `linux-guide.md`, `macos-guide.md`
-- **architect-design.md** — Architecture design document
-- **AGENTS.md** — Development rules and lessons learned
-
----
-
-## 15. Blueprint for New Development
-
-### Development Workflow
-
-#### Adding a New Feature (e.g., new detection type)
-
-1. **Define types** in shared file (e.g., `scanner.go`)
-2. **Implement platform-specific IO** in `_<os>.go` files with build tags
-3. **Add to pipeline** in `main.go` or relevant package
-4. **Add tests** in `_test.go` file
-5. **Build and test** on all platforms: `go test ./...`
-
-#### Adding a New Report Section
-
-1. Add fields to `report.Data` struct
-2. Add section generation in `GenerateMarkdown()`
-3. Add to `GenerateJSON()` if needed
-4. Add to `Summarize()` if counting is needed
-5. Add tests in `report_test.go`
-
-### Implementation Templates
-
-#### New Platform-Specific File Template
-
-```go
-//go:build <os>
-
-package <package>
-
-func <interfaceFunction>() (<returnType>, error) {
-    // Implement using native OS utilities
-    // Use exec.Command for PowerShell/Bash calls
-    // Never use CGo
-}
-```
-
-#### New Package Template
-
-```go
-package <name>
-
-// No internal dependencies unless explicitly required
-// Keep package focused on single responsibility
-```
-
-### Common Pitfalls
-
-1. **Mixing debug and refactor** — Isolate changes to one phase at a time
-2. **Adding CGo on Windows** — Use `exec.Command` with PowerShell/native utilities
-3. **Slice modification in range loops** — Use `for i := range conns { c := &conns[i] }` to modify elements
-4. **DNS without timeout** — Always wrap DNS calls with `context.WithTimeout(2s)`
-5. **Invalid whitelist IPs at runtime** — Validate at config load time with `net.ParseIP()`
-6. **Markdown table injection** — Escape `|` and `` ` `` in user-provided strings
-7. **Double-parentheses in strings.Builder** — Easy to accidentally add extra `)` in `sb.WriteString()` calls
-8. **wmic blank line parsing** — Fields separated by 1 blank line, entries by 3+ consecutive blank lines; use emit-on-field strategy
-
-### When This Blueprint Was Generated
-
-**Date:** 2026-06-05
-**Version:** 0.4.0
-
-### Keeping This Blueprint Updated
-
-- Review and update after each major feature addition
-- Update dependency table when adding external packages
-- Update platform abstraction section when adding new OS support
-- Review architecture patterns when codebase grows beyond current scope
+*This blueprint was generated on 2026-06-05 from analysis of the `networksentinel` Go module. Review and update this document when significant architectural changes are made.*

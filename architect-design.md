@@ -1,12 +1,14 @@
 # NetworkSentinel — Architecture & End-to-End Flow
 
+> **Last updated:** 2026-06-05 (post-UI integration, miekg/dns migration, DNS capture pipeline)
+
 ## Entry Point: `main.go`
 
 `main.go` is the orchestrator. It parses CLI flags, loads config, then runs either:
 - **One-shot scan** (`runScan()`) — single analysis pass
 - **Daemon mode** (`runDaemon()`) — continuous scanning on a timer
 
-Both paths call `runScan()`, which executes a 5-step pipeline.
+Both paths call `runScan()`, which executes an **8-step pipeline** (previously 5 steps).
 
 ---
 
@@ -15,30 +17,37 @@ Both paths call `runScan()`, which executes a 5-step pipeline.
 ```
 main.go
   │
-  ├─ [1/5] System Info   → systeminfo.Gather()
+  ├─ [1/8] System Info   → systeminfo.Gather()
   │
-  ├─ [2/5] Scan           → scanner.ScanAll(cfg)
+  ├─ [2/8] Scan           → scanner.ScanAll(cfg)
   │                          ├─ enumerateProcesses()    (platform-specific)
   │                          ├─ getNetConnections()     (platform-specific)
   │                          ├─ correlate PID → process name
   │                          ├─ determineDirection()    (outbound/internal/inbound)
   │                          ├─ filter excluded PIDs/processes
-  │                          └─ processinfo.GetProcessInfo(pid)  (security context)
+  │                          └─ processinfo.GetProcessInfo(pid) × unique PIDs
+  │                              → Returns map[int]processinfo.Info (security context)
   │
-  ├─ DNS Resolution       → dns.ResolveConnectionsDNS(conns, concurrency)
-  │                          ├─ Parallel worker pool (cfg.DNS.LookupConcurrency, default 10)
-  │                          ├─ Each lookup: 2s timeout via context.WithTimeout
-  │                          └─ Deduplicates addresses before lookups
+  ├─ [3/8] DNS Resolution → dns.ResolveConnectionsDNS(conns, concurrency)
+  │                          ├─ miekg/dns DNSSession (Google DNS 8.8.8.8:53)
+  │                          ├─ QueryMultiplePTRs() concurrent reverse lookups
+  │                          ├─ Default 10 concurrent lookups (cfg.DNS.LookupConcurrency)
+  │                          └─ Populates c.DNSName on outbound connections
   │
-  ├─ [3/5] Baseline Diff  → baseline.Load() + baseline.Diff()
+  ├─ [4/8] DNS Capture    → dns.CaptureDNSQueries(cfg, hostname) [if cfg.DNSLog]
+  │                          ├─ Platform-specific DNS cache capture (see §16 below)
+  │                          ├─ For each external connection: dns.CheckDomain() analysis
+  │                          ├─ Save to JSON file (captured_dns_queries_*.json)
+  │                          └─ dns.DNSQueriesToIPMap() → cross-reference to connections
   │
-  ├─ [4/5] Risk Analysis  → scanner.AssessConnectionRisk()
-  │                          └─ threatintel.AssessConnectionRiskWithThreatIntel()
+  ├─ [5/8] Baseline Diff  → baseline.Load() + baseline.Diff()
+  │                          ├─ Key: PID:RemoteAddr:RemotePort
+  │                          └─ Classifies: New, Gone, Unchanged
   │
-  ├─ Threat Intel Aggregation (step [4/5])
-  │  ├─ Built-in indicators: threatintel.KnownC2IPs (33 indicators)
-  │  ├─ External feed file: -feed flag → threatintel.GetFeedIOCs()
-  │  ├─ Live ThreatFox feed: cfg.ThreatIntel.Enabled → NewThreatFoxFeedClient()
+  ├─ [6/8] Threat Intel   → Multi-source IOC aggregation
+  │  ├─ Built-in: threatintel.KnownC2IPs (33 indicators)
+  │  ├─ External file: -feed flag → threatintel.GetFeedIOCs()
+  │  ├─ Live ThreatFox: cfg.ThreatIntel.Enabled → NewThreatFoxFeedClient()
   │  │   └─ HTTP GET https://threatfox-api.abuse.ch/v1/search (optional API key)
   │  │   └─ FeedCacheManager with 1h TTL, returns stale cache on failure
   │  └─ C2IntelFeeds CSV: NewC2IntelFeedsClient().FetchAllIOCs()
@@ -47,10 +56,16 @@ main.go
   │      └─ Standalone c2update binary also fetches same feeds for scheduled updates
   │          └─ Consumed via -feed flag: networksentinel -feed c2intel_feeds.json
   │
-  └─ [5/5] Report         → report.GenerateMarkdown()
-                              report.GenerateJSON()
-                              report.GenerateCSV()
-                              alerting.Registry.Send()  (if enabled)
+  ├─ [7/8] Risk Analysis  → scanner.AssessConnectionRiskWithThreatIntel()
+  │                          ├─ 6 heuristics per outbound connection
+  │                          ├─ Threat intel enrichment (boosts risk level)
+  │                          └─ Returns []ConnectionRisk with risk level + reasons
+  │
+  └─ [8/8] Report & Alert → report.GenerateMarkdown() / GenerateJSON() / GenerateCSV()
+                               alerting.Registry.Send()  (if enabled)
+                               baseline.Save()
+                               Print suspicious connections (if any)
+                               Print top 10 processes by network activity
 ```
 
 ---
@@ -65,10 +80,11 @@ main.go
 - Calls `os.Hostname()` to get the machine name
 - Reads `runtime.GOOS` for the OS platform string (e.g., `"windows"`, `"linux"`, `"darwin"`)
 - Iterates `net.Interfaces()` to collect all non-loopback IPv4 addresses
+- Filters interfaces by `net.FlagUp` and `net.FlagLoopback` flags
 
-**Returns:** `*SystemDetails` — hostname, OS platform, list of local IPs.
+**Returns:** `*SystemDetails` — hostname, OS platform, list of local IPs, MAC addresses.
 
-**Called by:** `main.go` at step [1/5]. The result is passed into the report as system context.
+**Called by:** `main.go` at step [1/8]. The result is passed into the report as system context and to `dns.CaptureDNSQueries()`.
 
 ---
 
@@ -320,37 +336,64 @@ main.go
 
 ---
 
-### 15. `dns/lookup.go` — DNS Forward Lookup
+### 15. `dns/lookup.go` — DNS Resolution & Capture Integration
 
-**Purpose:** Resolve IP addresses to domain names via reverse DNS lookup.
+**Purpose:** Resolve IP addresses to domain names and capture DNS query logs.
 
 **What it does:**
-- `LookupDomain(addr)` — Single reverse DNS lookup via `net.Resolver` with 2s timeout, resolves an IP address to a domain name
-- `LookupDomainsParallel(addrs []string, concurrency int) []LookupResult` — Fan-outs N reverse DNS lookups concurrently via a worker pool. Each lookup has a 2s timeout. Deduplicates addresses. Results preserve input order.
-- `ResolveConnectionsDNS(conns []scanner.Connection, concurrency int) int` — Integrates with scanner.Connection: collects unique outbound addresses, calls `LookupDomainsParallel`, populates `c.DNSName` for resolved connections. Returns count of resolved domains.
-- `CheckDomain(domain)` — Analyzes a domain for suspicious indicators. Checks:
+- **`ResolveConnectionsDNS(conns, concurrency)`** — Resolves outbound connection IPs to domain names:
+  - Uses `DNSSession.QueryMultiplePTRs()` (miekg/dns, Google DNS 8.8.8.8:53)
+  - Collects unique outbound addresses, fan-outs N concurrent lookups
+  - Deduplicates addresses before lookups
+  - Populates `c.DNSName` for resolved connections
+  - Returns count of resolved domains
+- **`DNSQueriesToIPMap(queries)`** — Builds IP→domain map from captured DNS queries for cross-referencing
+- **`ResolveDomainToIP(domain)`** — Forward DNS lookup (domain → IP)
+- **`resolveConnectionDomains(conns)`** — Fallback resolver for connections without DNS names
+- **`CheckDomain(domain)`** — Analyzes a domain for suspicious indicators:
   - Suspicious TLDs (pre-sorted `suspiciousTLDSorted` slice for cache-friendly iteration)
   - Keyword matches (login, verify, secure, auth, account, signin, banking, payment, crypto, wallet, admin)
-  - Returns confidence score (0-100) and reason string
+  - Returns `SuspiciousDomainResult` with confidence score (0-100) and reason string
 
 **Key types:**
+- `DNSSession` — miekg/dns client wrapper (see §15a below)
+- `DNSCacheEntry` — cached DNS cache entry from OS
 - `LookupResult` — addr + resolved name pair
 - `SuspiciousDomainResult` — domain, confidence, isSuspicious, reason
 
-**Called by:** `main.go` at step [2/5] via `dns.ResolveConnectionsDNS(conns, cfg.DNS.LookupConcurrency)`. Uses concurrency from `cfg.DNS.LookupConcurrency` (default 10).
+**Called by:** `main.go` at step [3/8] via `dns.ResolveConnectionsDNS(conns, cfg.DNS.LookupConcurrency)`. Uses concurrency from `cfg.DNS.LookupConcurrency` (default 10).
+
+---
+
+### 15a. `dns/miekg_dns.go` — miekg/dns DNS Session
+
+**Purpose:** Replace Go's `net.Resolver` with miekg/dns for more reliable DNS lookups.
+
+**What it does:**
+- `NewDNSSession()` — Creates a DNS client using Google DNS 8.8.8.8:53
+- `QueryDomain(domain)` — Forward DNS lookup (domain → IP)
+- `QueryDomainPTR(ip)` — Reverse DNS lookup (IP → domain)
+- `QueryMultipleDomains(domains)` — Concurrent forward lookups with error handling
+- `QueryMultiplePTRs(ips)` — Concurrent reverse lookups with error handling
+
+**Why the change:** Go's `net.Resolver` had unreliable reverse DNS resolution on Windows. miekg/dns provides direct DNS protocol queries with better error handling and timeout control.
+
+**Build tag:** No build tag — shared across all platforms.
 
 ---
 
 ### 16. `dns/query_windows.go` / `query_linux.go` / `query_darwin.go` — Platform-Specific DNS Capture
 
-**Purpose:** Capture DNS cache entries from OS-specific sources.
+**Purpose:** Capture DNS cache entries from OS-specific sources, with miekg/dns fallback.
 
 **What they do:**
-- **Windows** (`query_windows.go`): Uses `Get-CimInstance MSFT_DNSClientCache` via PowerShell to get DNS cache entries, parses JSON output for domain/process correlation
-- **Linux** (`query_linux.go`): Uses `journalctl -u systemd-resolved --grep query` first, then falls back to `/var/log/syslog` for DNS query logs
-- **macOS** (`query_darwin.go`): Uses `dscacheutil -q host -a name` first, then falls back to `log show --predicate "eventMessage CONTAINS 'DNS'"` for DNS query logs
+- **Windows** (`query_windows.go`): Uses `Get-DnsClientCache` via PowerShell (updated from `Get-CimInstance MSFT_DNSClientCache` which was removed in Windows 10/11). Parses JSON output for domain/process correlation. `CaptureMethod` = `"powershell_dnsclientcache"` or `"powershell_dnsclientcache_failed"`
+- **Linux** (`query_linux.go`): Uses `journalctl -u systemd-resolved --grep query` first, then falls back to `/var/log/syslog`. If both yield nothing, falls back to miekg/dns PTR lookups. `CaptureMethod` = `"journalctl_or_syslog"`
+- **macOS** (`query_darwin.go`): Uses `dscacheutil -q host -a name` first, then falls back to `log show --predicate "eventMessage CONTAINS 'DNS'"`. If both yield nothing, falls back to miekg/dns PTR lookups. `CaptureMethod` = `"dscacheutil_or_log"`
 
 **Build tags:** `//go:build windows`, `//go:build linux`, `//go:build darwin` respectively.
+
+**New in latest version:** miekg/dns fallback added to Linux and macOS when native tools yield no results. Windows always uses PowerShell `Get-DnsClientCache`.
 
 ---
 
@@ -513,30 +556,46 @@ schtasks /create /tn "C2IntelFeedsUpdate" /tr "powershell -ExecutionPolicy Bypas
 |  4. Else -> runScan()                                           |
 |                                                                  |
 |  runScan():                                                      |
-|    [1/5] systeminfo.Gather()                                    |
-|      -> hostname, OS, local IPs                                  |
-|    [2/5] scanner.ScanAll(cfg)                                   |
+|    [1/8] systeminfo.Gather()                                    |
+|      -> hostname, OS, local IPs, MAC addresses                   |
+|    [2/8] scanner.ScanAll(cfg)                                   |
 |      -> enumerateProcesses()  (platform-specific)                |
 |      -> getNetConnections()   (platform-specific)                |
 |      -> correlate PID -> process name                            |
 |      -> determineDirection()                                     |
 |      -> filter excluded                                          |
-|      -> processinfo.GetProcessInfo(pid)                          |
-|    DNS: dns.ResolveConnectionsDNS(conns, concurrency)           |
-|      -> Parallel worker pool (cfg.DNS.LookupConcurrency default 10) |
-|      -> Deduplicates addresses, 2s timeout per lookup            |
-|    [3/5] baseline.Load() + baseline.Diff()                       |
-|    [4/5] Threat Intel Aggregation                               |
+|      -> processinfo.GetProcessInfo(pid) × unique PIDs            |
+|         → Returns map[int]processinfo.Info (security context)    |
+|    [3/8] DNS: dns.ResolveConnectionsDNS(conns, concurrency)     |
+|      -> miekg/dns DNSSession (Google DNS 8.8.8.8:53)           |
+|      -> QueryMultiplePTRs() concurrent reverse lookups           |
+|      -> Populates c.DNSName on connections                       |
+|    [4/8] DNS Capture: dns.CaptureDNSQueries(cfg, hostname)      |
+|      -> Platform-specific DNS cache capture                      |
+|      -> CheckDomain() for each external connection               |
+|      -> Save to JSON file                                        |
+|      -> DNSQueriesToIPMap() cross-reference to connections       |
+|    [5/8] baseline.Load() + baseline.Diff()                       |
+|      -> Key: PID:RemoteAddr:RemotePort                            |
+|      -> New / Gone / Unchanged classification                    |
+|    [6/8] Threat Intel Aggregation                               |
 |      -> Built-in: threatintel.KnownC2IPs (33 indicators)         |
 |      -> External file: -feed flag -> GetFeedIOCs()               |
 |      -> Live ThreatFox: cfg.ThreatIntel.Enabled -> FeedCacheMgr  |
 |      -> C2IntelFeeds CSV: FetchAllIOCs() (~590 indicators)       |
-|    [4/5] scanner.AssessConnectionRisk()                          |
-|      -> 6 heuristics per connection                              |
-|      -> threatintel.LookupConnection()                           |
-|    [5/5] report.GenerateMarkdown() / GenerateJSON() / CSV()      |
+|    [7/8] scanner.AssessConnectionRiskWithThreatIntel()           |
+|      -> 6 heuristics per outbound connection                     |
+|      -> Threat intel enrichment (confidence boost)               |
+|    [8/8] report.GenerateMarkdown() / GenerateJSON() / CSV()     |
+|      -> Markdown: full report with all sections                  |
+|      -> JSON: structured data with findings summary              |
+|      -> CSV: connections + risks spreadsheets                    |
 |    alerting.Registry.Send() (if enabled)                         |
+|      -> WebhookNotifier (HTTP POST)                              |
+|      -> SyslogNotifier (stderr)                                  |
 |    baseline.Save()                                               |
+|    Print suspicious connections (if any)                         |
+|    Print top 10 processes by network activity                    |
 +------------------------------------------------------------------+
 ```
 
@@ -546,34 +605,37 @@ schtasks /create /tn "C2IntelFeedsUpdate" /tr "powershell -ExecutionPolicy Bypas
 
 ```
 main.go
-  +-- config (Load, DNSConfig, ThreatIntelConfig)
-  +-- systeminfo (Gather)
-  +-- scanner (ScanAll, AssessConnectionRisk, AssessConnectionRiskWithThreatIntel)
-  +-- dns (ResolveConnectionsDNS, LookupDomain, CaptureDNSQueries, CheckDomain, SaveCaptureResult)
-  +-- threatintel (NewThreatIntelDB, AddIOCs, GetFeedIOCs, NewThreatFoxFeedClient, NewFeedCacheManager, NewC2IntelFeedsClient)
-  +-- baseline (Load, Diff, Save)
-  +-- report (GenerateMarkdown, GenerateJSON, GenerateCSV, IsSuspicious, IsExternal, IsLocal, Summarize)
-  +-- alerting (NewRegistry, AddNotifier, Send)
+  +-- config (Load, DNSConfig, ThreatIntelConfig, Alerting, Thresholds)
+  +-- systeminfo (Gather, SystemDetails)
+  +-- scanner (ScanAll, AssessConnectionRiskWithThreatIntel, Connection, ProcessEntry, ConnectionRisk, RiskLevel)
+  +-- dns (ResolveConnectionsDNS, CaptureDNSQueries, CheckDomain, SaveCaptureResult, DNSQueriesToIPMap, CaptureResult, Query)
+  +-- threatintel (NewThreatIntelDB, AddIOCs, GetFeedIOCs, KnownC2IPs, NewThreatFoxFeedClient, NewFeedCacheManager, NewC2IntelFeedsClient, ThreatIntelDB)
+  +-- baseline (Load, Diff, Save, DiffResult, Entry)
+  +-- report (GenerateMarkdown, GenerateJSON, GenerateCSV, IsSuspicious, IsSuspiciousProcess, Data, WhitelistedIP)
+  +-- alerting (NewRegistry, WebhookNotifier, SyslogNotifier, Alert)
   +-- version (Version)
 
 scanner
-  +-- config (IsExcludedPID, IsExcludedProcess, IsWhitelistedIP, Thresholds, DNSConfig)
+  +-- config (IsExcludedPID, IsExcludedProcess, IsWhitelistedIP, GetWhitelistComment, Thresholds)
   +-- processinfo (GetProcessInfo, Info, Elevated, SYSTEM, IsSuspiciousPath)
-  +-- threatintel (ThreatIntelDB, LookupConnection)
+  +-- threatintel (AssessConnectionRiskWithThreatIntel, ThreatIntelDB, LookupConnection)
 
 report
-  +-- scanner (IsExternalIP, IsPrivateIP, SuspiciousProcessNamesList, IsSuspiciousPort, Connection, ProcessEntry, ConnectionRisk, RiskLevel)
+  +-- scanner (IsExternalIP, IsPrivateIP, SuspiciousProcessNamesList, IsSuspiciousPort, Connection, ProcessEntry, ConnectionRisk, RiskLevel, RiskCritical, RiskHigh, RiskMedium, RiskLow)
   +-- baseline (DiffResult, Entry)
   +-- processinfo (Info, Elevated, SYSTEM)
   +-- systeminfo (SystemDetails)
+  +-- dns (CaptureResult)
   +-- version (Version)
+
+dns/lookup
+  +-- scanner (Connection) — ResolveConnectionsDNS imports scanner.Connection
+
+dns/query_windows, query_linux, query_darwin
+  +-- config (Config, DNSLog)
 
 processinfo
   +-- (no internal dependencies)
-
-dns
-  +-- scanner (Connection) — ResolveConnectionsDNS imports scanner.Connection
-  +-- (platform-specific: uses exec.Command for OS tools)
 
 alerting
   +-- (no internal dependencies)
@@ -595,6 +657,37 @@ version
 
 c2update (standalone binary)
   +-- (no internal dependencies — self-contained fetch + JSON output)
+
+ui/main.go (Wails GUI)
+  +-- baseline (Load, Diff, Save, Entry, DiffResult)
+  +-- config (Load, Config, Defaults, Thresholds, DNSConfig, Alerting, ThreatIntelConfig, WhitelistedIP, Excluded)
+  +-- dns (CaptureDNSQueries, DNSQueriesToIPMap, CaptureResult, Query)
+  +-- processinfo (Info, Elevated, SYSTEM)
+  +-- report (Data, Summarize, Findings)
+  +-- scanner (ScanAll, AssessConnectionRiskWithThreatIntel, Connection, ProcessEntry, ConnectionRisk)
+  +-- systeminfo (Gather)
+  +-- threatintel (NewThreatIntelDB, AddIOCs, KnownC2IPs, NewThreatFoxFeedClient, NewFeedCacheManager, NewC2IntelFeedsClient)
+  +-- ui/configmgr (ConfigManager, NewConfigManager, Snapshot)
+
+ui/configmgr
+  +-- config (Config)
+```
+
+### Dependency Graph Summary
+
+```
+main.go ──imports──► config, systeminfo, scanner, dns, threatintel, baseline, report, alerting, version
+scanner ──imports──► config, processinfo, threatintel
+report ──imports──► scanner, baseline, processinfo, systeminfo, dns, version
+dns/lookup ──imports──► scanner (Connection type only)
+dns/query_* ──imports──► config
+ui/main ──imports──► baseline, config, dns, processinfo, report, scanner, systeminfo, threatintel, ui/configmgr
+ui/configmgr ──imports──► config
+c2update ──imports──► (none — standalone)
+
+All other packages ──imports──► (none — leaf modules)
+
+No circular dependencies. All dependencies flow inward toward leaf modules.
 ```
 
 ---
@@ -611,7 +704,7 @@ c2update (standalone binary)
 
 5. **Interface-based alerting** — `Notifier` interface allows adding new alert delivery mechanisms (Slack, PagerDuty, etc.) without modifying existing code.
 
-6. **Parallel worker pools** — `dns.LookupDomainsParallel()` uses a channel-based worker pool to fan-out concurrent DNS lookups. Each lookup has a 2s timeout. Deduplication avoids redundant work.
+6. **Parallel worker pools** — `dns.QueryMultiplePTRs()` uses miekg/dns concurrent reverse lookups. Each lookup has timeout control. Deduplication avoids redundant work.
 
 7. **Cached feed clients** — `FeedCacheManager` provides TTL-based caching for live threat intel feeds. Returns stale cache on fetch failure, preventing scan failure from network issues.
 
@@ -622,3 +715,11 @@ c2update (standalone binary)
 10. **Platform-specific pattern injection via init()** — `suspiciousPathPatterns` is a shared global slice populated by each OS-specific `init()` function. `IsSuspiciousPath()` in the shared `processinfo.go` iterates over the slice. This provides platform-aware detection without code duplication while keeping a single shared implementation.
 
 11. **Unified privilege escalation detection** — `Info.IsPrivEscalation()` method in `processinfo.go` is the single source of truth for scanner and report. Eliminates the previous duplication where the report used crude `strings.Contains(..., "temp")` substring checks that produced false positives (e.g., `C:\temporal\program.exe`).
+
+12. **miekg/dns DNS session** — `DNSSession` wraps miekg/dns client with Google DNS 8.8.8.8:53. Provides `QueryDomain()`, `QueryDomainPTR()`, `QueryMultipleDomains()`, `QueryMultiplePTRs()` methods. Replaced unreliable `net.Resolver` reverse DNS on Windows.
+
+13. **Three-tier DNS capture** — Platform-specific native tools first (PowerShell `Get-DnsClientCache`, `journalctl`, `dscacheutil`), then log files (`/var/log/syslog`, macOS `log show`), then miekg/dns PTR fallback. `CaptureMethod` string tracks which method succeeded.
+
+14. **Wails GUI integration** — `ui/main.go` wraps the entire scanning pipeline into a Wails desktop app. Mirrors `main.go`'s `runScan()` in `App.RunScan()`, returns structured JSON responses for React frontend. Embeds frontend assets via `//go:embed all:frontend/dist`.
+
+15. **Config snapshot management** — `ui/configmgr` provides named snapshots, export, and save operations. Enables config versioning without modifying core config package.

@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetworkSentinel — Interactive Architecture Diagram</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --surface2: #334155;
+  --border: #475569;
+  --text: #e2e8f0;
+  --text-dim: #94a3b8;
+  --accent: #38bdf8;
+  --accent2: #818cf8;
+  --green: #4ade80;
+  --orange: #fb923c;
+  --red: #f87171;
+  --yellow: #fbbf24;
+  --pink: #f472b6;
+  --cyan: #22d3ee;
+  --node-radius: 10px;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Toolbar ── */
+.toolbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.toolbar h1 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 12px;
+  white-space: nowrap;
+}
+.toolbar .badge {
+  font-size: 11px;
+  background: var(--surface2);
+  padding: 2px 8px;
+  border-radius: 12px;
+  color: var(--text-dim);
+}
+.toolbar button {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+.toolbar button:hover { background: var(--accent); color: #000; }
+.toolbar button.active { background: var(--accent); color: #000; font-weight: 600; }
+
+/* ── Canvas ── */
+.canvas-wrap {
+  margin-top: 52px;
+  padding: 24px;
+  overflow: auto;
+  min-height: calc(100vh - 52px);
+}
+
+.diagram {
+  display: grid;
+  grid-template-columns: 200px 1fr 220px;
+  gap: 16px;
+  max-width: 1400px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* ── Side panels ── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--node-radius);
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.panel h3 {
+  font-size: 14px;
+  color: var(--accent);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.panel h4 {
+  font-size: 13px;
+  color: var(--accent2);
+  margin: 10px 0 6px;
+}
+.panel p { margin-bottom: 6px; }
+.panel code {
+  background: var(--surface2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+}
+.panel ul { padding-left: 16px; margin: 4px 0; }
+.panel li { margin-bottom: 3px; }
+
+/* ── Center pipeline ── */
+.pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 10px;
+}
+
+/* ── Pipeline step ── */
+.step {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--node-radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+.step:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(56,189,248,0.15);
+  transform: translateY(-1px);
+}
+.step.highlighted {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(56,189,248,0.25);
+}
+.step.dimmed { opacity: 0.35; }
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface2);
+  font-size: 13px;
+  font-weight: 600;
+  user-select: none;
+}
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #000;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.step-body {
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-dim);
+}
+.step-body code {
+  background: rgba(56,189,248,0.1);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--accent);
+}
+.step-body .sub {
+  padding-left: 16px;
+  border-left: 2px solid var(--border);
+  margin: 4px 0;
+}
+
+/* step colors */
+.step[data-color="blue"]   .step-num { background: var(--accent); }
+.step[data-color="purple"] .step-num { background: var(--accent2); }
+.step[data-color="green"]  .step-num { background: var(--green); }
+.step[data-color="orange"] .step-num { background: var(--orange); }
+.step[data-color="red"]    .step-num { background: var(--red); }
+.step[data-color="cyan"]   .step-num { background: var(--cyan); }
+.step[data-color="pink"]   .step-num { background: var(--pink); }
+.step[data-color="yellow"] .step-num { background: var(--yellow); }
+
+/* ── Arrow between steps ── */
+.arrow {
+  text-align: center;
+  color: var(--border);
+  font-size: 20px;
+  padding: 2px 0;
+  user-select: none;
+}
+
+/* ── Detail overlay ── */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(15,23,42,0.85);
+  backdrop-filter: blur(4px);
+  justify-content: center;
+  align-items: center;
+}
+.overlay.visible { display: flex; }
+.overlay-content {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  padding: 28px 32px;
+  max-width: 640px;
+  width: 90%;
+  max-height: 85vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.overlay-content h2 {
+  font-size: 18px;
+  color: var(--accent);
+  margin-bottom: 14px;
+}
+.overlay-content h3 {
+  font-size: 14px;
+  color: var(--accent2);
+  margin: 12px 0 6px;
+}
+.overlay-content p, .overlay-content li {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-dim);
+}
+.overlay-content code {
+  background: var(--surface2);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'Cascadia Code', monospace;
+  color: var(--accent);
+}
+.overlay-content pre {
+  background: var(--bg);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 8px 0;
+  color: var(--text-dim);
+  font-family: 'Cascadia Code', monospace;
+}
+.overlay-content ul { padding-left: 16px; }
+.overlay-content li { margin-bottom: 4px; }
+.overlay-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.overlay-close:hover { background: var(--red); color: #fff; }
+
+/* ── Legend ── */
+.legend {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  justify-content: center;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* ── Flow diagram view ── */
+.flow-view {
+  display: none;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.flow-view.visible { display: block; }
+
+.flow-svg {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* ── Dependency view ── */
+.dep-view {
+  display: none;
+}
+.dep-view.visible { display: block; }
+
+.dep-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.dep-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--node-radius);
+  padding: 14px;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.dep-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.dep-card h4 {
+  font-size: 14px;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.dep-card p {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .diagram {
+    grid-template-columns: 1fr;
+  }
+  .panel { max-height: none; }
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border); }
+</style>
+</head>
+<body>
+
+<!-- ═══ Toolbar ═══ -->
+<div class="toolbar">
+  <h1>NetworkSentinel</h1>
+  <span class="badge">Go 1.26</span>
+  <span class="badge">Pipeline Architecture</span>
+  <span class="badge">Cross-Platform</span>
+  <button class="active" onclick="showView('pipeline')">Pipeline</button>
+  <button onclick="showView('dependencies')">Dependencies</button>
+  <button onclick="showView('flow')">Flow Diagram</button>
+  <button onclick="resetHighlights()">Reset</button>
+</div>
+
+<!-- ═══ Pipeline View ═══ -->
+<div class="canvas-wrap" id="pipelineView">
+  <div class="diagram">
+
+    <!-- Left panel: Modules -->
+    <div class="panel" id="modulesPanel">
+      <h3>Modules</h3>
+      <h4>Core Packages</h4>
+      <ul>
+        <li><code>main.go</code> — Orchestrator</li>
+        <li><code>scanner</code> — Scan engine</li>
+        <li><code>threatintel</code> — IOC database</li>
+        <li><code>processinfo</code> — Security context</li>
+        <li><code>dns</code> — DNS resolution</li>
+      </ul>
+      <h4>Supporting</h4>
+      <ul>
+        <li><code>config</code> — Config management</li>
+        <li><code>report</code> — Report generation</li>
+        <li><code>baseline</code> — Snapshot diffing</li>
+        <li><code>alerting</code> — Alert delivery</li>
+        <li><code>systeminfo</code> — System discovery</li>
+      </ul>
+      <h4>Standalone</h4>
+      <ul>
+        <li><code>c2update</code> — C2Feed updater</li>
+        <li><code>ui</code> — Wails desktop GUI</li>
+      </ul>
+      <h3>Key Patterns</h3>
+      <p><code>//go:build</code> tags for platform abstraction</p>
+      <p>Dependency injection via <code>*config.Config</code></p>
+      <p>No global state</p>
+      <p>On-stack arrays for zero-alloc</p>
+    </div>
+
+    <!-- Center: Pipeline -->
+    <div class="pipeline" id="pipelineCenter">
+
+      <div class="step" data-color="cyan" data-step="entry" onclick="showDetail('entry')">
+        <div class="step-header">
+          <span class="step-num">0</span>
+          <span>CLI Entry &amp; Config Load</span>
+        </div>
+        <div class="step-body">
+          <code>flag.Parse()</code> — Parse <code>-config</code>, <code>-daemon</code>, <code>-feed</code>, <code>-output</code>
+          <div class="sub"><code>config.Load()</code> — Merge JSON with defaults, validate thresholds &amp; whitelist</div>
+        </div>
+      </div>
+
+      <div class="arrow">&#10505;</div>
+
+      <div class="step" data-color="blue" data-step="systeminfo" onclick="showDetail('systeminfo')">
+        <div class="step-header">
+          <span class="step-num">1</span>
+          <span>System Discovery</span>
+        </div>
+        <div class="step-body">
+          <code>systeminfo.Gather()</code>
+          <div class="sub"><code>os.Hostname()</code> + <code>runtime.GOOS</code> + <code>net.Interfaces()</code></div>
+          <div class="sub">Returns: <code>SystemDetails{hostname, OS, localIPs, MACs}</code></div>
+        </div>
+      </div>
+
+      <div class="arrow">&#10505;</div>
+
+      <div class="step" data-color="purple" data-step="scanner" onclick="showDetail('scanner')">
+        <div class="step-header">
+          <span class="step-num">2</span>
+          <span>Network Scan</span>
+        </div>
+        <div class="step-body">
+          <code>scanner.ScanAll(cfg)</code>
+          <div class="sub"><code>enumerateProcesses()</code> — platform-specific (wmic /proc /lsof)</div>
+          <div class="sub"><code>getNetConnections()</code> — platform-specific (netstat /proc/net /lsof)</div>
+          <div class="sub">Correlate PID &rarr; process name</div>
+          <div class="sub"><code>determineDirection()</code> — outbound / internal / inbound</div>
+          <div class="sub">Filter excluded PIDs/processes from config</div>
+          <div class="sub"><code>processinfo.GetProcessInfo(pid)</code> for each unique PID</div>
+        </div>
+      </div>
+
+      <div class="arrow">&#10505;</div>
+
+      <div class="step" data-color="green" data-step="dns" onclick="showDetail('dns')">
+        <div class="step-header">
+          <span class="step-num">DNS</span>
+          <span>Resolution &amp; Capture</span>
+        </div>
+        <div class="step-body">
+          <code>dns.ResolveConnectionsDNS(conns, concurrency)</code>
+          <div class="sub">Parallel worker pool (default 10 concurrent)</div>
+          <div class="sub">2s timeout per lookup, deduplicates addresses</div>
+          <div class="sub">Populates <code>c.DNSName</code> for resolved connections</div>
+          <div class="sub" style="margin-top:6px;"><code>dns.CaptureDNSQueries()</code> — platform-specific DNS cache capture</div>
+          <div class="sub">Cross-reference: <code>ipToDomain</code> map &rarr; populate remaining DNSNames</div>
+        </div>
+      </div>
+
+      <div class="arrow">&#10505;</div>
+
+      <div class="step" data-color="orange" data-step="baseline" onclick="showDetail('baseline')">
+        <div class="step-header">
+          <span class="step-num">3</span>
+          <span>Baseline Comparison</span>
+        </div>
+        <div class="step-body">
+          <code>baseline.Load(baseline.json)</code>
+          <div class="sub"><code>baseline.Diff(current, previous)</code> — New / Gone / Unchanged</div>
+          <div class="sub"><code>baseline.Save(current)</code> — overwrite with current state</div>
+        </div>
+      </div>
+
+      <div class="arrow">&#10505;</div>
+
+      <div class="step" data-color="red" data-step="threatintel" onclick="showDetail('threatintel')">
+        <div class="step-header">
+          <span class="step-num">4</span>
+          <span>Threat Intel Aggregation</span>
+        </div>
+        <div class="step-body">
+          <code>threatintel.NewThreatIntelDB()</code>
+          <div class="sub">Built-in: <code>KnownC2IPs</code> (33 indicators)</div>
+          <div class="sub">External file: <code>-feed</code> flag &rarr; <code>GetFeedIOCs()</code></div>
+          <div class="sub">Live: ThreatFox API &rarr; <code>FeedCacheManager</code> (1h TTL)</div>
+          <div class="sub">C2IntelFeeds CSV: <code>FetchAllIOCs()</code> (~590 indicators)</div>
+        </div>
+      </div>
+
+      <div class="arrow">&#10505;</div>
+
+      <div class="step" data-color="yellow" data-step="risk" onclick="showDetail('risk')">
+        <div class="step-header">
+          <span class="step-num">4</span>
+          <span>Risk Assessment</span>
+        </div>
+        <div class="step-body">
+          <code>scanner.AssessConnectionRiskWithThreatIntel()</code>
+          <div class="sub">6 heuristics per connection:</div>
+          <div class="sub">1. Suspicious port (4444, 8080, 1337...)</div>
+          <div class="sub">2. Suspicious process (cmd.exe, powershell...)</div>
+          <div class="sub">3. Transition state (SYN_SENT, TIME_WAIT...)</div>
+          <div class="sub">4. High IP connection count (>= threshold)</div>
+          <div class="sub">5. High process connection count (>= threshold)</div>
+          <div class="sub">6. Privilege escalation chain (elevated + unsigned + temp path)</div>
+          <div class="sub">Threat intel boost: confidence >= 80 &rarr; high</div>
+        </div>
+      </div>
+
+      <div class="arrow">&#10505;</div>
+
+      <div class="step" data-color="pink" data-step="report" onclick="showDetail('report')">
+        <div class="step-header">
+          <span class="step-num">5</span>
+          <span>Report Generation &amp; Alerts</span>
+        </div>
+        <div class="step-body">
+          <code>report.GenerateMarkdown()</code> / <code>GenerateJSON()</code> / <code>GenerateCSV()</code>
+          <div class="sub">Markdown: system info, connections, risks, privilege escalation, baseline</div>
+          <div class="sub">JSON: full structured data with findings summary</div>
+          <div class="sub">CSV: connections + risks spread sheets</div>
+          <div class="sub"><code>alerting.Registry.Send()</code> — Webhook + Stdout for Critical/High</div>
+        </div>
+      </div>
+
+      <div class="arrow">&#10505;</div>
+
+      <div class="step" data-color="green" data-step="output" onclick="showDetail('output')">
+        <div class="step-header">
+          <span class="step-num">&Oslash;</span>
+          <span>Output Artifacts</span>
+        </div>
+        <div class="step-body">
+          <code>network_sentinel_<hostname>_<timestamp>.md</code>
+          <div class="sub"><code>network_sentinel_<hostname>_<timestamp>.json</code></div>
+          <div class="sub"><code>_connections.csv</code> / <code>_risks.csv</code></div>
+          <div class="sub"><code>baseline.json</code> (saved current state)</div>
+          <div class="sub"><code>captured_dns_queries_<hostname>_<timestamp>.json</code></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right panel: Data types -->
+    <div class="panel" id="typesPanel">
+      <h3>Data Types</h3>
+      <h4>Core Models</h4>
+      <ul>
+        <li><code>Connection</code> — PID, process, local/remote addr:port, protocol, state, direction, DNSName</li>
+        <li><code>ConnectionRisk</code> — Connection + RiskLevel, RiskReasons[], IsSuspicious, IsWhitelisted</li>
+        <li><code>RiskLevel</code> — "low" | "medium" | "high" | "critical"</li>
+        <li><code>ProcessEntry</code> — PID, Name</li>
+      </ul>
+      <h4>Security</h4>
+      <ul>
+        <li><code>processinfo.Info</code> — PID, name, username, exePath, privLevel, isSigned, integrity</li>
+        <li><code>AdminPrivilegeLevel</code> — "elevated" | "standard" | "system"</li>
+        <li><code>IntegrityLevel</code> — System / High / Medium / Low</li>
+      </ul>
+      <h4>Intelligence</h4>
+      <ul>
+        <li><code>IOC</code> — indicator, type, malwareFamily, confidence, country, tags, source</li>
+        <li><code>ThreatIntelDB</code> — ipv4 map, domain map</li>
+      </ul>
+      <h4>Reports</h4>
+      <ul>
+        <li><code>report.Data</code> — System, Connections, Processes, Risks, Security, Baseline, Whitelist, DNSQueries</li>
+        <li><code>Findings</code> — outbound, endpoints, risk counts, privEsc, whitelisted</li>
+      </ul>
+      <h4>Config</h4>
+      <ul>
+        <li><code>Config</code> — Thresholds, Excluded, Whitelist, DNS, Alerting, ThreatIntel</li>
+        <li><code>Thresholds</code> — minIP, minProcess, criticalThreshold, highThreshold</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> Scanner</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div> Platform Abstraction</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> DNS / Output</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div> Baseline</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Threat Intel</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div> Risk Analysis</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--pink)"></div> Reports</div>
+  </div>
+</div>
+
+<!-- ═══ Dependencies View ═══ -->
+<div class="canvas-wrap dep-view" id="depView">
+  <h2 style="color:var(--accent); margin-bottom:16px; font-size:18px;">Module Dependency Graph</h2>
+  <div class="dep-grid">
+    <div class="dep-card" onclick="showDetail('dep-main')">
+      <h4>main.go (Orchestrator)</h4>
+      <p>Imports: config, systeminfo, scanner, dns, threatintel, baseline, report, alerting, version</p>
+    </div>
+    <div class="dep-card" onclick="showDetail('dep-scanner')">
+      <h4>scanner (Scan Engine)</h4>
+      <p>Imports: config, processinfo, threatintel</p>
+      <p>Platform files: scanner_windows.go, scanner_linux.go, scanner_darwin.go</p>
+    </div>
+    <div class="dep-card" onclick="showDetail('dep-report')">
+      <h4>report (Report Generator)</h4>
+      <p>Imports: scanner, baseline, processinfo, systeminfo, dns, version</p>
+    </div>
+    <div class="dep-card" onclick="showDetail('dep-dns')">
+      <h4>dns (DNS Resolution)</h4>
+      <p>Imports: scanner (Connection type only)</p>
+      <p>Platform files: query_windows.go, query_linux.go, query_darwin.go</p>
+    </div>
+    <div class="dep-card" onclick="showDetail('dep-threatintel')">
+      <h4>threatintel (IOC Database)</h4>
+      <p>Leaf module — no internal dependencies</p>
+      <p>Files: threatintel.go, feeds.go, loader.go, c2intelfeeds.go</p>
+    </div>
+    <div class="dep-card" onclick="showDetail('dep-config')">
+      <h4>config (Configuration)</h4>
+      <p>Leaf module — no internal dependencies</p>
+    </div>
+    <div class="dep-card" onclick="showDetail('dep-processinfo')">
+      <h4>processinfo (Security Context)</h4>
+      <p>Leaf module — no internal dependencies</p>
+      <p>Platform files: processinfo_windows.go, processinfo_linux.go, processinfo_darwin.go</p>
+    </div>
+    <div class="dep-card" onclick="showDetail('dep-alerting')">
+      <h4>alerting (Alert Delivery)</h4>
+      <p>Leaf module — no internal dependencies</p>
+    </div>
+    <div class="dep-card" onclick="showDetail('dep-baseline')">
+      <h4>baseline (Snapshot Diffing)</h4>
+      <p>Leaf module — no internal dependencies</p>
+    </div>
+    <div class="dep-card" onclick="showDetail('dep-systeminfo')">
+      <h4>systeminfo (System Discovery)</h4>
+      <p>Leaf module — no internal dependencies</p>
+    </div>
+    <div class="dep-card" onclick="showDetail('dep-ui')">
+      <h4>ui (Wails Desktop GUI)</h4>
+      <p>Imports: all core packages + ui/configmgr</p>
+      <p>Embeds frontend assets via <code>//go:embed all:frontend/dist</code></p>
+    </div>
+    <div class="dep-card" onclick="showDetail('dep-c2update')">
+      <h4>c2update (Standalone Updater)</h4>
+      <p>No internal dependencies — self-contained HTTP + CSV parsing</p>
+      <p>Separate Go module with <code>replace</code> directive for threatintel types</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Flow Diagram View ═══ -->
+<div class="canvas-wrap flow-view" id="flowView">
+  <h2 style="color:var(--accent); margin-bottom:16px; font-size:18px;">End-to-End Flow Diagram</h2>
+  <svg class="flow-svg" viewBox="0 0 1200 900" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="grad-blue" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop="#0ea5e9"/><stop offset="100%" stop="#0284c7"/></linearGradient>
+      <linearGradient id="grad-purple" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop="#818cf8"/><stop offset="100%" stop="#6366f1"/></linearGradient>
+      <linearGradient id="grad-green" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop="#4ade80"/><stop offset="100%" stop="#22c55e"/></linearGradient>
+      <linearGradient id="grad-orange" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop="#fb923c"/><stop offset="100%" stop="#f97316"/></linearGradient>
+      <linearGradient id="grad-red" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop="#f87171"/><stop offset="100%" stop="#ef4444"/></linearGradient>
+      <linearGradient id="grad-yellow" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop="#fbbf24"/><stop offset="100%" stop="#eab308"/></linearGradient>
+      <linearGradient id="grad-pink" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop="#f472b6"/><stop offset="100%" stop="#ec4899"/></linearGradient>
+      <linearGradient id="grad-cyan" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop="#22d3ee"/><stop offset="100%" stop="#06b6d4"/></linearGradient>
+      <filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/></filter>
+    </defs>
+
+    <!-- Main flow box -->
+    <rect x="300" y="20" width="600" height="860" rx="16" fill="none" stroke="#475569" stroke-width="1" stroke-dasharray="6,4"/>
+    <text x="600" y="48" text-anchor="middle" fill="#94a3b8" font-size="13" font-weight="600">main.go (Orchestrator)</text>
+
+    <!-- Step 0: CLI -->
+    <g onclick="showDetail('entry')" style="cursor:pointer" class="flow-node">
+      <rect x="400" y="65" width="280" height="48" rx="10" fill="url(#grad-cyan)" filter="url(#shadow)"/>
+      <text x="540" y="94" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">CLI Parse + Config Load</text>
+    </g>
+
+    <!-- Arrow -->
+    <line x1="540" y1="113" x2="540" y2="138" stroke="#475569" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+    <!-- Step 1: System Info -->
+    <g onclick="showDetail('systeminfo')" style="cursor:pointer" class="flow-node">
+      <rect x="400" y="138" width="280" height="48" rx="10" fill="url(#grad-blue)" filter="url(#shadow)"/>
+      <text x="540" y="167" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">System Discovery</text>
+    </g>
+
+    <!-- Arrow -->
+    <line x1="540" y1="186" x2="540" y2="211" stroke="#475569" stroke-width="2"/>
+
+    <!-- Step 2: Scanner -->
+    <g onclick="showDetail('scanner')" style="cursor:pointer" class="flow-node">
+      <rect x="400" y="211" width="280" height="48" rx="10" fill="url(#grad-purple)" filter="url(#shadow)"/>
+      <text x="540" y="240" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">Network Scan</text>
+    </g>
+
+    <!-- Arrow -->
+    <line x1="540" y1="259" x2="540" y2="284" stroke="#475569" stroke-width="2"/>
+
+    <!-- DNS -->
+    <g onclick="showDetail('dns')" style="cursor:pointer" class="flow-node">
+      <rect x="400" y="284" width="280" height="48" rx="10" fill="url(#grad-green)" filter="url(#shadow)"/>
+      <text x="540" y="313" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">DNS Resolution &amp; Capture</text>
+    </g>
+
+    <!-- Arrow -->
+    <line x1="540" y1="332" x2="540" y2="357" stroke="#475569" stroke-width="2"/>
+
+    <!-- Step 3: Baseline -->
+    <g onclick="showDetail('baseline')" style="cursor:pointer" class="flow-node">
+      <rect x="400" y="357" width="280" height="48" rx="10" fill="url(#grad-orange)" filter="url(#shadow)"/>
+      <text x="540" y="386" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">Baseline Comparison</text>
+    </g>
+
+    <!-- Arrow -->
+    <line x1="540" y1="405" x2="540" y2="430" stroke="#475569" stroke-width="2"/>
+
+    <!-- Step 4: Threat Intel -->
+    <g onclick="showDetail('threatintel')" style="cursor:pointer" class="flow-node">
+      <rect x="400" y="430" width="280" height="48" rx="10" fill="url(#grad-red)" filter="url(#shadow)"/>
+      <text x="540" y="459" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">Threat Intel Aggregation</text>
+    </g>
+
+    <!-- Arrow -->
+    <line x1="540" y1="478" x2="540" y2="503" stroke="#475569" stroke-width="2"/>
+
+    <!-- Step 4b: Risk -->
+    <g onclick="showDetail('risk')" style="cursor:pointer" class="flow-node">
+      <rect x="400" y="503" width="280" height="48" rx="10" fill="url(#grad-yellow)" filter="url(#shadow)"/>
+      <text x="540" y="532" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">Risk Assessment (6 Heuristics)</text>
+    </g>
+
+    <!-- Arrow -->
+    <line x1="540" y1="551" x2="540" y2="576" stroke="#475569" stroke-width="2"/>
+
+    <!-- Step 5: Report -->
+    <g onclick="showDetail('report')" style="cursor:pointer" class="flow-node">
+      <rect x="400" y="576" width="280" height="48" rx="10" fill="url(#grad-pink)" filter="url(#shadow)"/>
+      <text x="540" y="605" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">Report Generation &amp; Alerts</text>
+    </g>
+
+    <!-- Arrow -->
+    <line x1="540" y1="624" x2="540" y2="649" stroke="#475569" stroke-width="2"/>
+
+    <!-- Output -->
+    <g onclick="showDetail('output')" style="cursor:pointer" class="flow-node">
+      <rect x="400" y="649" width="280" height="48" rx="10" fill="url(#grad-green)" filter="url(#shadow)"/>
+      <text x="540" y="678" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">Output Artifacts</text>
+    </g>
+
+    <!-- Side box: Daemon mode -->
+    <rect x="20" y="200" width="140" height="120" rx="10" fill="none" stroke="#818cf8" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="90" y="230" text-anchor="middle" fill="#818cf8" font-size="12" font-weight="600">Daemon Mode</text>
+    <text x="90" y="252" text-anchor="middle" fill="#94a3b8" font-size="11">-daemon N</text>
+    <text x="90" y="270" text-anchor="middle" fill="#94a3b8" font-size="11">Continuous scan</text>
+    <text x="90" y="288" text-anchor="middle" fill="#94a3b8" font-size="11">every N seconds</text>
+    <text x="90" y="306" text-anchor="middle" fill="#94a3b8" font-size="11">Ctrl+C to stop</text>
+    <line x1="160" y1="260" x2="200" y2="260" stroke="#818cf8" stroke-width="1" stroke-dasharray="3,3"/>
+
+    <!-- Side box: c2update -->
+    <rect x="960" y="100" width="210" height="100" rx="10" fill="none" stroke="#4ade80" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="1065" y="130" text-anchor="middle" fill="#4ade80" font-size="12" font-weight="600">c2update (Standalone)</text>
+    <text x="1065" y="150" text-anchor="middle" fill="#94a3b8" font-size="11">Scheduled C2 feed updater</text>
+    <text x="1065" y="168" text-anchor="middle" fill="#94a3b8" font-size="11">cron / systemd / Task Scheduler</text>
+    <text x="1065" y="186" text-anchor="middle" fill="#94a3b8" font-size="11">Output: JSON feed file</text>
+    <text x="1065" y="204" text-anchor="middle" fill="#94a3b8" font-size="11">Consumed via -feed flag</text>
+    <line x1="960" y1="150" x2="900" y2="150" stroke="#4ade80" stroke-width="1" stroke-dasharray="3,3"/>
+
+    <!-- Side box: UI -->
+    <rect x="960" y="300" width="210" height="100" rx="10" fill="none" stroke="#f472b6" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="1065" y="330" text-anchor="middle" fill="#f472b6" font-size="12" font-weight="600">ui/ (Wails Desktop GUI)</text>
+    <text x="1065" y="350" text-anchor="middle" fill="#94a3b8" font-size="11">React + Vite frontend</text>
+    <text x="1065" y="368" text-anchor="middle" fill="#94a3b8" font-size="11">Embeds all core packages</text>
+    <text x="1065" y="386" text-anchor="middle" fill="#94a3b8" font-size="11">Config snapshots &amp; export</text>
+    <text x="1065" y="404" text-anchor="middle" fill="#94a3b8" font-size="11">Same pipeline as CLI</text>
+    <line x1="960" y1="350" x2="900" y2="350" stroke="#f472b6" stroke-width="1" stroke-dasharray="3,3"/>
+
+    <!-- Side box: Heuristics detail -->
+    <rect x="960" y="520" width="210" height="180" rx="10" fill="none" stroke="#fbbf24" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="1065" y="550" text-anchor="middle" fill="#fbbf24" font-size="12" font-weight="600">6 Risk Heuristics</text>
+    <text x="1000" y="574" fill="#94a3b8" font-size="10">1. Suspicious port (4444, 8080...)</text>
+    <text x="1000" y="590" fill="#94a3b8" font-size="10">2. Suspicious process</text>
+    <text x="1000" y="606" fill="#94a3b8" font-size="10">3. Transition state</text>
+    <text x="1000" y="622" fill="#94a3b8" font-size="10">4. High IP connection count</text>
+    <text x="1000" y="638" fill="#94a3b8" font-size="10">5. High process connection count</text>
+    <text x="1000" y="654" fill="#94a3b8" font-size="10">6. Privilege escalation chain</text>
+    <text x="1000" y="678" fill="#94a3b8" font-size="10">Aggregated → risk level</text>
+    <text x="1000" y="694" fill="#94a3b8" font-size="10">Boosted by threat intel</text>
+    <line x1="960" y1="610" x2="900" y2="610" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3,3"/>
+
+    <!-- Output box detail -->
+    <rect x="960" y="740" width="210" height="140" rx="10" fill="none" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="1065" y="770" text-anchor="middle" fill="#22d3ee" font-size="12" font-weight="600">Output Artifacts</text>
+    <text x="1000" y="794" fill="#94a3b8" font-size="10">.md — Markdown report</text>
+    <text x="1000" y="810" fill="#94a3b8" font-size="10">.json — JSON structured data</text>
+    <text x="1000" y="826" fill="#94a3b8" font-size="10">_connections.csv</text>
+    <text x="1000" y="842" fill="#94a3b8" font-size="10">_risks.csv</text>
+    <text x="1000" y="858" fill="#94a3b8" font-size="10">baseline.json</text>
+    <text x="1000" y="874" fill="#94a3b8" font-size="10">captured_dns_queries.json</text>
+    <line x1="960" y1="810" x2="900" y2="810" stroke="#22d3ee" stroke-width="1" stroke-dasharray="3,3"/>
+
+  </svg>
+</div>
+
+<!-- ═══ Detail Overlay ═══ -->
+<div class="overlay" id="overlay" onclick="if(event.target===this)hideDetail()">
+  <div class="overlay-content" id="overlayContent">
+    <button class="overlay-close" onclick="hideDetail()">&times;</button>
+    <div id="overlayBody"></div>
+  </div>
+</div>
+
+<script>
+// ── Detail content database ──
+const details = {
+  entry: {
+    title: 'Step 0 — CLI Entry & Config Load',
+    body: `
+      <h3>Command-Line Flags</h3>
+      <pre>--config   Path to config file (default: config.json)
+--output   Output directory for reports (default: .)
+--daemon   Run in daemon mode with interval in seconds (0 = one-shot)
+--feed     Path to C2 threat intel JSON feed file
+-h         Show help</pre>
+      <h3>Configuration Loading</h3>
+      <p><code>config.Load(filename)</code> performs:</p>
+      <ul>
+        <li>Returns <code>Defaults()</code> with sane values: thresholds (5 conn/min, critical=3, high=2), DNS concurrency=10, threat intel timeout=10s</li>
+        <li>Reads JSON config file, merges partial fields on top of defaults</li>
+        <li>Validates thresholds: no negatives, critical >= high</li>
+        <li>Validates whitelist IPs using <code>net.ParseIP()</code> — clears invalid entries</li>
+        <li>Builds in-memory <code>ipIndex</code> map for O(1) whitelist lookups</li>
+      </ul>
+      <h3>Entry Point Flow</h3>
+      <pre>main()
+  ├── flag.Parse()
+  ├── config.Load(*configFile)
+  ├── if *daemonInterval > 0 → runDaemon(cfg, interval, outputDir)
+  └── else → runScan(cfg, outputDir)</pre>
+    `
+  },
+  systeminfo: {
+    title: 'Step 1 — System Discovery',
+    body: `
+      <h3><code>systeminfo.Gather()</code></h3>
+      <p>Gathers OS-level metadata about the host machine.</p>
+      <h4>What it does</h4>
+      <ul>
+        <li>Calls <code>os.Hostname()</code> to get the machine name</li>
+        <li>Reads <code>runtime.GOOS</code> for the OS platform string ("windows", "linux", "darwin")</li>
+        <li>Iterates <code>net.Interfaces()</code> to collect all non-loopback IPv4 addresses</li>
+      </ul>
+      <h4>Returns</h4>
+      <pre>*SystemDetails {
+    Hostname:     string,    // e.g., "GOLIATH"
+    OSPlatform:   string,    // e.g., "windows"
+    LocalIPs:     []string,  // e.g., ["192.168.1.10", "10.0.0.5"]
+    MACAddresses []string    // (collected but not always populated)
+}</pre>
+      <h4>Cross-platform</h4>
+      <p>No platform-specific implementation needed — all standard library calls.</p>
+    `
+  },
+  scanner: {
+    title: 'Step 2 — Network Scan',
+    body: `
+      <h3><code>scanner.ScanAll(cfg)</code></h3>
+      <p>The main scanning entry point. Orchestrates the full network scan.</p>
+      <h4>Steps performed</h4>
+      <ol>
+        <li><code>enumerateProcesses()</code> — platform-specific process enumeration</li>
+        <li><code>getNetConnections(connSet)</code> — platform-specific connection capture</li>
+        <li>Correlate connections to process names via PID</li>
+        <li><code>determineDirection()</code> — classify as outbound/internal/inbound</li>
+        <li>Filter excluded PIDs and processes from config</li>
+        <li>Gather security context via <code>processinfo.GetProcessInfo(pid)</code> for each unique PID</li>
+      </ol>
+      <h4>Platform-specific implementations</h4>
+      <h5>Windows (<code>scanner_windows.go</code>)</h5>
+      <pre>enumerateProcesses(): wmic process get Name,ProcessId /format:list
+getNetConnections():  netstat -ano</pre>
+      <h5>Linux (<code>scanner_linux.go</code>)</h5>
+      <pre>enumerateProcesses(): /proc/[pid]/comm for each numeric PID dir
+getNetConnections():  /proc/net/tcp, /proc/net/tcp6, inode→PID via /proc/[pid]/fd/*</pre>
+      <h5>macOS (<code>scanner_darwin.go</code>)</h5>
+      <pre>enumerateProcesses(): ps axco pid,comm
+getNetConnections():  lsof -nP -i</pre>
+      <h4>Returns</h4>
+      <pre>([]Connection, []ProcessEntry, map[int]processinfo.Info, error)</pre>
+    `
+  },
+  dns: {
+    title: 'DNS Resolution & Capture',
+    body: `
+      <h3>Reverse DNS Resolution</h3>
+      <p><code>dns.ResolveConnectionsDNS(conns, concurrency)</code></p>
+      <ul>
+        <li>Collects unique outbound addresses from connections</li>
+        <li>Fan-outs N reverse DNS lookups concurrently via worker pool (default 10)</li>
+        <li>Each lookup has a 2s timeout via <code>context.WithTimeout</code></li>
+        <li>Deduplicates addresses before lookups to avoid redundant work</li>
+        <li>Populates <code>c.DNSName</code> for resolved connections</li>
+      </ul>
+      <h3>DNS Cache Capture</h3>
+      <p><code>dns.CaptureDNSQueries(cfg, hostname)</code> — platform-specific:</p>
+      <h5>Windows</h5>
+      <pre>Get-CimInstance MSFT_DNSClientCache (PowerShell)</pre>
+      <h5>Linux</h5>
+      <pre>journalctl -u systemd-resolved --grep query
+Fallback: /var/log/syslog</pre>
+      <h5>macOS</h5>
+      <pre>dscacheutil -q host -a name
+Fallback: log show --predicate "eventMessage CONTAINS 'DNS'"</pre>
+      <h3>Cross-reference</h3>
+      <p><code>dns.DNSQueriesToIPMap()</code> maps captured DNS queries to connection IPs, populating remaining <code>DNSName</code> fields.</p>
+    `
+  },
+  baseline: {
+    title: 'Step 3 — Baseline Comparison',
+    body: `
+      <h3><code>baseline.Load()</code> + <code>baseline.Diff()</code></h3>
+      <p>Compares current connections against a previous snapshot to detect changes.</p>
+      <h4>How it works</h4>
+      <ol>
+        <li><code>baseline.Load("baseline.json")</code> — reads previous snapshot</li>
+        <li>Builds maps keyed by <code>PID:RemoteAddr:RemotePort</code></li>
+        <li>Classifies entries as New, Gone, or Unchanged</li>
+        <li>Calculates baseline age from timestamp</li>
+      </ol>
+      <h4>Returns</h4>
+      <pre>DiffResult {
+    New:         []Entry,  // in current but not in baseline
+    Gone:        []Entry,  // in baseline but not in current
+    Unchanged:   []Entry,  // present in both
+    BaselineAge time.Duration
+}</pre>
+      <h4>After scan</h4>
+      <p><code>baseline.Save()</code> overwrites <code>baseline.json</code> with current state for next comparison.</p>
+    `
+  },
+  threatintel: {
+    title: 'Step 4 — Threat Intel Aggregation',
+    body: `
+      <h3>Multi-source IOC Database</h3>
+      <p><code>threatintel.NewThreatIntelDB()</code> — in-memory C2 indicator database.</p>
+      <h4>Four data sources merged:</h4>
+      <h5>1. Built-in indicators</h5>
+      <pre>threatintel.KnownC2IPs  → 33 indicators
+CobaltStrike, Metasploit, Empire, Sliver, BruteRatel
+LummaStealer, MeduzaStealer, QuasarRAT, DarkComet
+ShadowPad, Covenant, Mythic, Deimos, Havoc
++ 11 phishing domains</pre>
+      <h5>2. External feed file</h5>
+      <pre>-feed flag → threatintel.GetFeedIOCs()
+JSON array of IOC objects</pre>
+      <h5>3. Live ThreatFox feed</h5>
+      <pre>cfg.ThreatIntel.Enabled → NewThreatFoxFeedClient()
+HTTP GET https://threatfox-api.abuse.ch/v1/search
+FeedCacheManager with 1h TTL, stale cache on failure</pre>
+      <h5>4. C2IntelFeeds CSV</h5>
+      <pre>NewC2IntelFeedsClient().FetchAllIOCs()
+IPC2s.csv (~180 IPs) + IPPortC2s.csv (~180 IP+port)
+domainC2s.csv (~70 domains) = ~590 indicators</pre>
+      <h4>Database structure</h4>
+      <pre>ThreatIntelDB {
+    ipv4:   map[string][]IOC,  // case-insensitive IP lookup
+    domain: map[string][]IOC   // case-insensitive domain lookup
+}</pre>
+    `
+  },
+  risk: {
+    title: 'Risk Assessment — 6 Heuristics',
+    body: `
+      <h3><code>scanner.AssessConnectionRiskWithThreatIntel()</code></h3>
+      <p>Evaluates each outbound connection against 6 independent heuristics, then enriches with threat intel.</p>
+      <h4>Heuristic 1 — Suspicious Port</h4>
+      <p>Checks against <code>CommonReverseProxyPorts</code> map (4444, 8080, 1337, 6667, 9050, etc.)</p>
+      <h4>Heuristic 2 — Suspicious Process</h4>
+      <p>Case-insensitive lookup in <code>suspiciousProcsLower</code> map. Platform-aware: cmd.exe/powershell on Windows, bash/nc/nmap on Linux/macOS.</p>
+      <h4>Heuristic 3 — Transition State</h4>
+      <p>SYN_SENT, SYN_RECEIVED, TIME_WAIT, CLOSE_WAIT — anomalous TCP states.</p>
+      <h4>Heuristic 4 — High IP Connection Count</h4>
+      <p>Count connections per remote IP. Flag if >= <code>cfg.Thresholds.MinIPConnections</code> (default 5).</p>
+      <h4>Heuristic 5 — High Process Connection Count</h4>
+      <p>Count outbound connections per process. Flag if >= <code>cfg.Thresholds.MinProcessConnections</code> (default 5).</p>
+      <h4>Heuristic 6 — Privilege Escalation Chain</h4>
+      <p>Detects: elevated privilege + unsigned binary + suspicious path (temp, AppData, etc.)</p>
+      <h4>Risk level assignment</h4>
+      <pre>0 reasons → skip (low)
+1 reason  → medium
+>=highThreshold (2) → high
+>=criticalThreshold (3) → critical</pre>
+      <h4>Threat intel boost</h4>
+      <p>If connection matches IOC with confidence >= 90 → critical. If >= 80 → high (if currently low/medium).</p>
+      <h4>Performance</h4>
+      <p>Uses on-stack <code>[6]string</code> array for reasons — zero heap allocation when no heuristics fire.</p>
+    `
+  },
+  report: {
+    title: 'Step 5 — Report Generation & Alerts',
+    body: `
+      <h3>Three output formats</h3>
+      <h4>Markdown (<code>GenerateMarkdown</code>)</h4>
+      <p>Comprehensive report with sections:</p>
+      <ul>
+        <li>System Information (hostname, OS, local IPs)</li>
+        <li>Network Connections Summary (total, outbound, inbound, states)</li>
+        <li>External Endpoints (unique IP:port pairs with DNS names)</li>
+        <li>DNS Queries (captured queries with process/PID)</li>
+        <li>Suspicious Connections (table of flagged connections)</li>
+        <li>Risk Analysis Summary (critical/high/medium/low counts)</li>
+        <li>Whitelisted Connections (with admin comments)</li>
+        <li>Top Processes by Network Activity (top 20)</li>
+        <li>Privilege Escalation Analysis (elevated + unsigned)</li>
+        <li>Baseline Comparison (new/gone/unchanged)</li>
+        <li>Key Findings (summary table)</li>
+      </ul>
+      <h4>JSON (<code>GenerateJSON</code>)</h4>
+      <p>Structured JSON with all scan data, findings summary, DNS lookup count.</p>
+      <h4>CSV (<code>GenerateCSV</code>)</h4>
+      <p>Two CSV files: connections and risks with full detail.</p>
+      <h3>Alert Delivery</h3>
+      <p><code>alerting.Registry.Send()</code> — broadcasts to all registered notifiers:</p>
+      <ul>
+        <li><code>WebhookNotifier</code> — HTTP POST to configured URL with JSON payload</li>
+        <li><code>SyslogNotifier</code> — stderr output (cross-platform syslog simulation)</li>
+      </ul>
+      <p>Sends alerts only for Critical and High risk connections.</p>
+      <h3>Interface design</h3>
+      <pre>type Notifier interface {
+    Name() string
+    Send(alert Alert) error
+}</pre>
+      <p>Extensible — add Slack, PagerDuty, email without modifying existing code.</p>
+    `
+  },
+  output: {
+    title: 'Output Artifacts',
+    body: `
+      <h3>Generated files (timestamped)</h3>
+      <pre>network_sentinel_<hostname>_<YYYYMMDD_HHMMSS>.md   — Markdown report
+network_sentinel_<hostname>_<YYYYMMDD_HHMMSS>.json  — JSON structured data
+network_sentinel_<hostname>_<YYYYMMDD_HHMMSS>_connections.csv
+network_sentinel_<hostname>_<YYYYMMDD_HHMMSS>_risks.csv
+baseline.json                                        — Saved current state
+captured_dns_queries_<hostname>_<YYYYMMDD_HHMMSS>.json — DNS capture</pre>
+      <h3>File naming</h3>
+      <p>Timestamp format: <code>20060102_150405</code> (Go reference time format)</p>
+      <h3>Baseline persistence</h3>
+      <p><code>baseline.json</code> is overwritten after each scan. The next scan compares against this saved state.</p>
+    `
+  },
+  // ── Dependency details ──
+  'dep-main': {
+    title: 'main.go — Module Dependencies',
+    body: `
+      <h3>Imports</h3>
+      <pre>main.go imports:
+  networksentinel/alerting
+  networksentinel/baseline
+  networksentinel/config
+  networksentinel/dns
+  networksentinel/report
+  networksentinel/scanner
+  networksentinel/systeminfo
+  networksentinel/threatintel
+  networksentinel/version</pre>
+      <h3>Role</h3>
+      <p>Orchestrator — parses CLI flags, loads config, runs either one-shot scan or daemon loop. All data flows through <code>main.go</code>.</p>
+    `
+  },
+  'dep-scanner': {
+    title: 'scanner — Module Dependencies',
+    body: `
+      <h3>Imports</h3>
+      <pre>scanner imports:
+  networksentinel/config
+  networksentinel/processinfo
+  networksentinel/threatintel</pre>
+      <h3>Structure</h3>
+      <pre>scanner/
+  scanner.go              ← Shared types + heuristics + ScanAll()
+  scanner_windows.go      ← wmic + netstat
+  scanner_linux.go        ← /proc + /proc/net/tcp
+  scanner_darwin.go       ← ps + lsof
+  scanner_bench_test.go   ← Benchmarks</pre>
+      <h3>Build tags</h3>
+      <p>Only one platform file compiles per build target via <code>//go:build</code> tags.</p>
+    `
+  },
+  'dep-report': {
+    title: 'report — Module Dependencies',
+    body: `
+      <h3>Imports</h3>
+      <pre>report imports:
+  networksentinel/baseline
+  networksentinel/dns
+  networksentinel/processinfo
+  networksentinel/scanner
+  networksentinel/systeminfo
+  networksentinel/version</pre>
+      <h3>Structure</h3>
+      <pre>report/
+  report.go              ← GenerateMarkdown, GenerateJSON, GenerateCSV
+  report_test.go         ← Tests</pre>
+      <h3>Key types</h3>
+      <p><code>Data</code> bundles all scan data. <code>Findings</code> summarizes risk counts.</p>
+    `
+  },
+  'dep-dns': {
+    title: 'dns — Module Dependencies',
+    body: `
+      <h3>Imports</h3>
+      <pre>dns imports:
+  networksentinel/scanner  (Connection type only)</pre>
+      <h3>Structure</h3>
+      <pre>dns/
+  lookup.go              ← Reverse DNS worker pool + domain analysis
+  query.go               ← Query, CaptureResult types
+  query_windows.go       ← MSFT_DNSClientCache (PowerShell)
+  query_linux.go         ← journalctl + /var/log/syslog
+  query_darwin.go        ← dscacheutil + log show
+  lookup_test.go         ← Tests
+  query_test.go          ← Tests</pre>
+    `
+  },
+  'dep-threatintel': {
+    title: 'threatintel — Module Dependencies',
+    body: `
+      <h3>Dependencies</h3>
+      <p>Leaf module — no internal dependencies. Uses only standard library (<code>encoding/json</code>, <code>net/http</code>, <code>encoding/csv</code>).</p>
+      <h3>Structure</h3>
+      <pre>threatintel/
+  threatintel.go         ← ThreatIntelDB, IOC, MatchResult
+  feeds.go               ← KnownC2IPs, ThreatFoxFeedClient, FeedCacheManager
+  loader.go              ← LoadFeed, GetFeedIOCs, MergeFeed
+  c2intelfeeds.go        ← C2IntelFeeds CSV parser
+  threatintel_test.go    ← Tests
+  loader_test.go         ← Tests</pre>
+      <h3>Data sources</h3>
+      <p>33 built-in IOC indicators + external JSON feed + ThreatFox live API + C2IntelFeeds CSV (~590 indicators).</p>
+    `
+  },
+  'dep-config': {
+    title: 'config — Module Dependencies',
+    body: `
+      <h3>Dependencies</h3>
+      <p>Leaf module — no internal dependencies.</p>
+      <h3>Structure</h3>
+      <pre>config/
+  config.go              ← Load, Defaults, Thresholds, whitelist
+  config_test.go         ← Tests</pre>
+      <h3>Key types</h3>
+      <p><code>Config</code> — top-level with thresholds, exclusions, whitelist, DNS, alerting, threat intel.</p>
+      <p><code>ipIndex</code> — pre-computed map for O(1) whitelist lookups.</p>
+    `
+  },
+  'dep-processinfo': {
+    title: 'processinfo — Module Dependencies',
+    body: `
+      <h3>Dependencies</h3>
+      <p>Leaf module — no internal dependencies.</p>
+      <h3>Structure</h3>
+      <pre>processinfo/
+  processinfo.go              ← Shared types + IsPrivEscalation() + IsSuspiciousPath()
+  processinfo_windows.go      ← PowerShell: token elevation + Authenticode
+  processinfo_linux.go        ← /proc/[pid]/status + /etc/passwd
+  processinfo_darwin.go       ← ps -p + /usr/bin/which + /etc/passwd
+  processinfo_test.go         ← Tests</pre>
+      <h3>Key pattern</h3>
+      <p><code>suspiciousPathPatterns</code> slice populated by each OS <code>init()</code> — single shared <code>IsSuspiciousPath()</code> function.</p>
+    `
+  },
+  'dep-alerting': {
+    title: 'alerting — Module Dependencies',
+    body: `
+      <h3>Dependencies</h3>
+      <p>Leaf module — no internal dependencies.</p>
+      <h3>Structure</h3>
+      <pre>alerting/
+  alerting.go        ← Notifier interface, WebhookNotifier, SyslogNotifier, Registry
+  alerting_test.go   ← Tests</pre>
+      <h3>Interface</h3>
+      <pre>type Notifier interface {
+    Name() string
+    Send(alert Alert) error
+}</pre>
+    `
+  },
+  'dep-baseline': {
+    title: 'baseline — Module Dependencies',
+    body: `
+      <h3>Dependencies</h3>
+      <p>Leaf module — no internal dependencies.</p>
+      <h3>Structure</h3>
+      <pre>baseline/
+  baseline.go      ← Save, Load, Diff, Snapshot, DiffResult
+  baseline_test.go ← Tests</pre>
+      <h3>Key pattern</h3>
+      <p>Key-based comparison: <code>PID:RemoteAddr:RemotePort</code> unique key per connection.</p>
+    `
+  },
+  'dep-systeminfo': {
+    title: 'systeminfo — Module Dependencies',
+    body: `
+      <h3>Dependencies</h3>
+      <p>Leaf module — no internal dependencies.</p>
+      <h3>Structure</h3>
+      <pre>systeminfo/
+  systeminfo.go    ← Gather(), SystemDetails
+  systeminfo_test.go ← Tests</pre>
+      <p>All standard library calls — no platform-specific implementation needed.</p>
+    `
+  },
+  'dep-ui': {
+    title: 'ui — Wails Desktop GUI',
+    body: `
+      <h3>Imports</h3>
+      <pre>ui imports:
+  networksentinel/baseline
+  networksentinel/config
+  networksentinel/dns
+  networksentinel/processinfo
+  networksentinel/report
+  networksentinel/scanner
+  networksentinel/systeminfo
+  networksentinel/threatintel
+  networksentinelui/configmgr</pre>
+      <h3>Structure</h3>
+      <pre>ui/
+  main.go              ← Wails app, App struct, all API methods
+  configmgr/configmgr.go ← Config snapshots, export, save
+  frontend/            ← React + Vite frontend (embedded via //go:embed)</pre>
+      <h3>Key patterns</h3>
+      <p><code>//go:embed all:frontend/dist</code> bundles frontend into Go binary.</p>
+      <p><code>App</code> struct encapsulates scan state — <code>lastScan</code>, <code>lastReport</code>, <code>lastBaseline</code>.</p>
+      <p>Response types for JSON serialization to frontend.</p>
+    `
+  },
+  'dep-c2update': {
+    title: 'c2update — Standalone C2Feed Updater',
+    body: `
+      <h3>Dependencies</h3>
+      <p>No internal dependencies — self-contained HTTP + CSV parsing.</p>
+      <h3>Separate module</h3>
+      <p>Uses <code>go mod replace</code> directive to pull in <code>networksentinel/threatintel</code> types.</p>
+      <h3>CLI flags</h3>
+      <pre>-output    Output JSON feed file path (default: c2intel_feeds.json)
+-30day     Fetch only the 30-day active IP list
+-domain    Fetch only the domain C2 list
+-ipport    Fetch only the IP+port C2 list
+-timeout   HTTP timeout in seconds (default: 10)</pre>
+      <h3>Scheduled updates</h3>
+      <pre># cron (Linux/macOS, every 6 hours)
+0 */6 * * * /path/to/c2update.sh -output /path/to/c2intel_feeds.json
+
+# Task Scheduler (Windows, daily at 2 AM)
+schtasks /create /tn "C2IntelFeedsUpdate" /tr "powershell -File c2update.ps1" /sc daily /st 02:00
+
+# systemd timer
+sudo systemctl enable --now c2update.timer</pre>
+    `
+  },
+};
+
+// ── View switching ──
+function showView(view) {
+  document.getElementById('pipelineView').style.display = view === 'pipeline' ? 'block' : 'none';
+  document.getElementById('depView').classList.toggle('visible', view === 'dependencies');
+  document.getElementById('flowView').classList.toggle('visible', view === 'flow');
+
+  document.querySelectorAll('.toolbar button').forEach(b => b.classList.remove('active'));
+  const labels = { pipeline: 'Pipeline', dependencies: 'Dependencies', flow: 'Flow Diagram' };
+  document.querySelectorAll('.toolbar button').forEach(b => {
+    if (b.textContent === labels[view]) b.classList.add('active');
+  });
+}
+
+// ── Highlighting ──
+function highlightStep(key) {
+  document.querySelectorAll('.step').forEach(s => {
+    if (s.dataset.step === key) {
+      s.classList.add('highlighted');
+      s.classList.remove('dimmed');
+    } else {
+      s.classList.add('dimmed');
+      s.classList.remove('highlighted');
+    }
+  });
+}
+
+function resetHighlights() {
+  document.querySelectorAll('.step').forEach(s => {
+    s.classList.remove('highlighted', 'dimmed');
+  });
+}
+
+// ── Detail overlay ──
+function showDetail(key) {
+  const d = details[key];
+  if (!d) return;
+  highlightStep(key);
+  document.getElementById('overlayBody').innerHTML = `<h2>${d.title}</h2>${d.body}`;
+  document.getElementById('overlay').classList.add('visible');
+}
+
+function hideDetail() {
+  document.getElementById('overlay').classList.remove('visible');
+  resetHighlights();
+}
+
+// ── Init ──
+showView('pipeline');
+</script>
+
+</body>
+</html>
